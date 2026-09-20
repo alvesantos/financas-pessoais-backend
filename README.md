@@ -1,6 +1,6 @@
-# Finn — API
+# Mnemio — API
 
-API REST em Go do **Finn — Finanças Pessoais**. Arquitetura em camadas: o
+API REST em Go do **Mnemio — Finanças**. Arquitetura em camadas: o
 domínio no centro, adaptadores na borda, dependências sempre apontando para
 dentro.
 

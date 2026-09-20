@@ -1,6 +1,6 @@
-# Finn — API (Go)
+# Mnemio — API (Go)
 
-API REST do Finn — Finanças Pessoais. Arquitetura em camadas, domínio no
+API REST do Mnemio — Finanças. Arquitetura em camadas, domínio no
 centro.
 
 ## Regras obrigatórias
