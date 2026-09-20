@@ -1,6 +1,6 @@
-# Mnemio — API
+# Mnemio: API
 
-API REST em Go do **Mnemio — Finanças**. Arquitetura em camadas: o
+API REST em Go do **Mnemio Finanças**. Arquitetura em camadas: o
 domínio no centro, adaptadores na borda, dependências sempre apontando para
 dentro.
 
@@ -51,13 +51,13 @@ internal/
     user.go               User, Session, Credentials, Registration
     errors.go             Error, ErrorCode e as sentinelas
     ports.go              UserRepository, AuthService, TokenIssuer, PasswordHasher
-  service/                CASOS DE USO — regras de negócio, sem HTTP nem SQL
-  repository/postgres/    REPOSITORIES — implementam as portas de persistência
+  service/                CASOS DE USO: regras de negócio, sem HTTP nem SQL
+  repository/postgres/    REPOSITORIES: implementam as portas de persistência
   auth/                   adaptadores de bcrypt e JWT
   database/               pool do Postgres e schema
   config/                 ambiente, .env e logger
   api/
-    controller/           CONTROLLERS — decodificam, delegam, serializam
+    controller/           CONTROLLERS: decodificam, delegam, serializam
     dto/                  corpos de requisição/resposta e sua validação
     request/              decodificação de JSON com validação
     response/             respostas JSON e a tradução de erro → status
@@ -158,7 +158,7 @@ Quatro tipos: `receita`, `despesa`, `cartao_credito` e `investimento`.
 positivo e o sinal vem do tipo (`domain.Kind.Signed`), então nenhum lugar do
 sistema precisa lembrar de inverter nada.
 
-Sem descrição, o lançamento recebe o nome do próprio tipo — "Despesa",
+Sem descrição, o lançamento recebe o nome do próprio tipo: "Despesa",
 "Gasto no cartão de crédito". A regra mora no serviço, não no controller.
 
 **Saldo atual** conta só o que já aconteceu, até hoje. **Saldo previsto**
@@ -166,14 +166,14 @@ conta o mês fechado, incluindo o que ainda vai cair e as projeções dos fixos.
 
 ## Lançamentos fixos
 
-Um fixo é uma regra — "Academia, todo dia 20, R$ 159,90" — com uma das seis
+Um fixo é uma regra ("Academia, todo dia 20, R$ 159,90") com uma das seis
 frequências: diário, semanal, quinzenal, mensal, semestral e anual.
 
 **Fixos não geram linhas em `transactions`.** As ocorrências são projetadas
 na leitura, por `domain.RecurringEntry.OccurrencesIn`. Isso evita o banco
 divergir quando a regra muda, e faz apagar um fixo sumir com as projeções
 dele em todos os meses de uma vez. Em troca, uma ocorrência isolada não pode
-ser editada — o que é o próximo passo natural, com uma tabela de exceções.
+ser editada. Esse é o próximo passo natural, com uma tabela de exceções.
 
 O ciclo conta desde a data de início, não do começo do mês: um semanal que
 começa em 01/01 cai nos dias 3, 10, 17 e 24 de setembro. Um mensal do dia 31
@@ -184,7 +184,7 @@ cai no último dia dos meses mais curtos, em vez de vazar para o mês seguinte.
 Dois números respondem "como estou hoje":
 
 - **Saldo atual** acumula tudo que já foi pago e recebido, desde a primeira
-  movimentação — sem recorte de mês ou ano. Os lançamentos gravados são
+  movimentação, sem recorte de mês ou ano. Os lançamentos gravados são
   somados no banco (`SumUntil`); os fixos são projetados do início de cada
   regra até hoje.
 - **Despesas fixas** é o custo de vida do mês: o que os fixos de saída somam
@@ -197,19 +197,19 @@ Dois números respondem "como estou hoje":
 - **Login não revela se o e-mail existe**: senha errada e e-mail inexistente
   devolvem a mesma resposta.
 - **E-mail duplicado é detectado pela constraint `UNIQUE`**, não por um
-  `SELECT` antes do `INSERT` — dois cadastros simultâneos não passam os dois.
+  `SELECT` antes do `INSERT`: dois cadastros simultâneos não passam os dois.
 - **O `.env` não sobrescreve o ambiente**: em produção as variáveis reais vencem.
 - **`JWT_SECRET` é obrigatório**; a aplicação não sobe sem ele, em nenhum ambiente.
 
 ## Testes
 
 **Unitários** (`internal/service/`): exercitam os casos de uso com
-repositório, hasher e emissor falsos — sem banco e sem servidor. É o retorno
+repositório, hasher e emissor falsos, sem banco e sem servidor. É o retorno
 prático de depender de interfaces.
 
 **E2e** (`test/e2e/`, atrás da tag de build `e2e`): sobem o roteador real em
 um `httptest.Server` e batem nas rotas com um cliente HTTP de verdade, contra
-um Postgres de verdade. Verificam status, corpo e o efeito no banco — que a
+um Postgres de verdade. Verificam status, corpo e o efeito no banco: que a
 senha foi hasheada, que o hash nunca aparece na resposta, que o e-mail é
 normalizado, que senha errada e e-mail inexistente são indistinguíveis.
 
@@ -226,7 +226,7 @@ make test-all   # unitários + e2e
 ## Próximos passos
 
 As categorias já têm CRUD, e `transactions` e `recurring_entries` já têm a
-coluna `category_id` — **falta ligar uma coisa à outra**: escolher a
+coluna `category_id`. **Falta ligar uma coisa à outra**: escolher a
 categoria ao lançar, exibi-la na lista e agrupar por ela no painel, que hoje
 agrupa por tipo.
 

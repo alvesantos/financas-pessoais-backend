@@ -9,7 +9,7 @@ import (
 )
 
 // DashboardService monta as métricas do painel a partir dos mesmos dados da
-// tela de lançamentos — incluindo as projeções dos fixos, para que os
+// tela de lançamentos, incluindo as projeções dos fixos, para que os
 // números das duas telas nunca discordem.
 type DashboardService struct {
 	transactions domain.TransactionRepository

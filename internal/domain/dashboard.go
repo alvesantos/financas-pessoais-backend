@@ -29,7 +29,7 @@ type YearTotals struct {
 // mensal do gráfico e a composição dos gastos do mês.
 type Dashboard struct {
 	// SaldoAtual acumula tudo que já foi pago ou recebido, desde a primeira
-	// movimentação — não é recortado por mês nem por ano.
+	// movimentação. Não é recortado por mês nem por ano.
 	SaldoAtual int64
 	// DespesasFixas é o custo de vida do mês: o que os fixos de saída somam
 	// no período, qualquer que seja a frequência de cada um.

@@ -1,6 +1,6 @@
-# Mnemio — API (Go)
+# Mnemio: API (Go)
 
-API REST do Mnemio — Finanças. Arquitetura em camadas, domínio no
+API REST do Mnemio Finanças. Arquitetura em camadas, domínio no
 centro.
 
 ## Regras obrigatórias
@@ -23,7 +23,7 @@ considere uma funcionalidade pronta sem os dois.
   domínio substituídas por fakes. Sem banco, sem servidor. Veja
   `internal/service/auth_service_test.go` como referência.
 - **E2e**: em `test/e2e/`, atrás da tag de build `e2e`. Exercitam a rota HTTP
-  de ponta a ponta — requisição real, roteador real, Postgres real — e
+  de ponta a ponta (requisição real, roteador real, Postgres real) e
   verificam status, corpo e o efeito no banco. Cubra o caminho feliz e as
   falhas (validação, não autorizado, conflito). Rodam contra o banco
   `financas_test`, criado e limpo pela própria suíte.
@@ -51,7 +51,7 @@ make psql       # psql dentro do container
 cmd/api/                  monta as dependências e sobe o servidor
 internal/
   domain/                 entidades, erros e as INTERFACES (portas)
-  service/                casos de uso — sem HTTP, sem SQL
+  service/                casos de uso: sem HTTP, sem SQL
   repository/postgres/    implementa as portas de persistência (pgx/v5)
   auth/                   adaptadores de bcrypt e JWT
   database/               pool e schema
@@ -79,15 +79,18 @@ DTO em `api/dto/` → controller em `api/controller/` → rota em
 ## Convenções
 
 - Código, comentários, mensagens de erro e commits em **português**.
+- **Nunca use travessão (—) em nada**: nem em texto de interface, nem em
+  comentário, nem em commit, nem em documentação. Use vírgula, dois-pontos,
+  ponto ou parênteses.
 - Comentário explica o porquê de uma decisão, não o que a linha faz.
 - **Dinheiro em centavos** (`BIGINT`), sempre positivo. O sinal vem do tipo
-  (`domain.Kind.Signed`) — nenhum lugar inverte valor na mão.
+  (`domain.Kind.Signed`). Nenhum lugar inverte valor na mão.
 - **Só `receita` soma saldo.** Despesa, cartão e investimento subtraem.
 - **Lançamento sem descrição recebe o nome do tipo**, e a regra mora no
   serviço, nunca no controller.
 - **Fixos não viram linhas em `transactions`**: as ocorrências são projetadas
   na leitura. Ao mexer nisso, o painel e a tela de lançamentos têm que
-  continuar contando igual — os dois passam pelo mesmo `summarize`.
+  continuar contando igual: os dois passam pelo mesmo `summarize`.
 - **Schema muda por migração nova** em `internal/database/migrations.go`.
   Migração já commitada nunca é editada.
 - Erros usam `domain.Error` com código de negócio. A tradução para status

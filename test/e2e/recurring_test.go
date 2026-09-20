@@ -17,7 +17,7 @@ func TestFixoApareceNosLancamentosDoMes(t *testing.T) {
 	resetDatabase(t)
 	token := contaComToken(t)
 
-	// "Academia, todo dia 20, R$ 159,90" — o caso do enunciado.
+	// "Academia, todo dia 20, R$ 159,90", o caso do enunciado.
 	criado := criarFixo(t, token, map[string]any{
 		"description":  "Academia",
 		"amount_cents": 15990,

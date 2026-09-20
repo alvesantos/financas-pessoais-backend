@@ -9,7 +9,7 @@ import (
 )
 
 // LoadDotEnv carrega o arquivo .env, se existir. Variáveis já presentes no
-// ambiente vencem o arquivo — é assim que produção sobrescreve o local.
+// ambiente vencem o arquivo. É assim que produção sobrescreve o local.
 func LoadDotEnv(path string) error {
 	if err := godotenv.Load(path); err != nil {
 		if errors.Is(err, fs.ErrNotExist) || os.IsNotExist(err) {

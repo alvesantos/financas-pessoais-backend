@@ -25,8 +25,8 @@ func PathID(r *http.Request, name string) (int64, error) {
 	return id, nil
 }
 
-// YearMonth lê ?year= e ?month= da query. Sem eles, usa o mês corrente —
-// abrir a tela sem parâmetro nenhum mostra o mês de hoje.
+// YearMonth lê ?year= e ?month= da query. Sem eles, usa o mês corrente.
+// Abrir a tela sem parâmetro nenhum mostra o mês de hoje.
 func YearMonth(r *http.Request) (int, time.Month, error) {
 	now := time.Now().UTC()
 	query := r.URL.Query()
