@@ -1,0 +1,26 @@
+# Nome explícito do projeto: sem ele o Compose usaria o nome da pasta
+# ("backend"), colidindo com outros projetos que também têm um backend/.
+name: financas
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: financas-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: financas
+      POSTGRES_PASSWORD: financas
+      POSTGRES_DB: financas
+    ports:
+      # 5432 e 5433 já estão ocupados nesta máquina.
+      - "5434:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U financas -d financas"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:

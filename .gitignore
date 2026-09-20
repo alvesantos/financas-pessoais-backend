@@ -1,0 +1,17 @@
+# Binários
+/bin/
+/api
+*.exe
+
+# Ambiente
+.env
+.env.local
+
+# Cobertura de testes
+*.out
+coverage.html
+
+# Editores
+.vscode/
+.idea/
+.DS_Store
