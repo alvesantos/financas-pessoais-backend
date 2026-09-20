@@ -28,6 +28,13 @@ type YearTotals struct {
 // Dashboard reúne as métricas do painel: o ano, o mês escolhido, a série
 // mensal do gráfico e a composição dos gastos do mês.
 type Dashboard struct {
+	// SaldoAtual acumula tudo que já foi pago ou recebido, desde a primeira
+	// movimentação — não é recortado por mês nem por ano.
+	SaldoAtual int64
+	// DespesasFixas é o custo de vida do mês: o que os fixos de saída somam
+	// no período, qualquer que seja a frequência de cada um.
+	DespesasFixas int64
+
 	Year          YearTotals
 	Month         MonthSummary
 	PorMes        []MonthTotals

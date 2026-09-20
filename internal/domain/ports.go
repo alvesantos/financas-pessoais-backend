@@ -42,6 +42,9 @@ type Clock interface {
 type TransactionRepository interface {
 	Create(ctx context.Context, input NewTransaction) (*Transaction, error)
 	ListByPeriod(ctx context.Context, userID int64, period Period) ([]Transaction, error)
+	// SumUntil soma o efeito no saldo de tudo que ocorreu até a data, sem
+	// recorte de mês ou ano.
+	SumUntil(ctx context.Context, userID int64, until time.Time) (int64, error)
 	Delete(ctx context.Context, userID, id int64) error
 }
 
@@ -71,4 +74,18 @@ type RecurringService interface {
 // DashboardService monta as métricas do painel.
 type DashboardService interface {
 	Overview(ctx context.Context, userID int64, year int, month time.Month) (*Dashboard, error)
+}
+
+// CategoryRepository é a porta de persistência de categorias.
+type CategoryRepository interface {
+	Create(ctx context.Context, input NewCategory) (*Category, error)
+	List(ctx context.Context, userID int64) ([]Category, error)
+	Delete(ctx context.Context, userID, id int64) error
+}
+
+// CategoryService é a porta de entrada dos casos de uso de categorias.
+type CategoryService interface {
+	Create(ctx context.Context, input NewCategory) (*Category, error)
+	List(ctx context.Context, userID int64) ([]Category, error)
+	Delete(ctx context.Context, userID, id int64) error
 }

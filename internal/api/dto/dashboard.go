@@ -27,6 +27,8 @@ type YearTotalsResponse struct {
 
 // DashboardResponse é o painel completo.
 type DashboardResponse struct {
+	SaldoAtual    int64                 `json:"saldo_atual_cents"`
+	DespesasFixas int64                 `json:"despesas_fixas_cents"`
 	Year          YearTotalsResponse    `json:"year"`
 	Month         MonthSummaryResponse  `json:"month"`
 	PorMes        []MonthTotalsResponse `json:"por_mes"`
@@ -36,6 +38,8 @@ type DashboardResponse struct {
 
 func NewDashboardResponse(d domain.Dashboard) DashboardResponse {
 	response := DashboardResponse{
+		SaldoAtual:    d.SaldoAtual,
+		DespesasFixas: d.DespesasFixas,
 		Year: YearTotalsResponse{
 			Year:     d.Year.Year,
 			Receitas: d.Year.Receitas,

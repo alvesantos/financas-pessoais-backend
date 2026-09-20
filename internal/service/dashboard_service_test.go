@@ -152,3 +152,98 @@ func TestPainelSemLancamentosVemZerado(t *testing.T) {
 		t.Error("esperava nenhum maior gasto")
 	}
 }
+
+func TestSaldoAtualAcumulaDesdeAPrimeiraMovimentacao(t *testing.T) {
+	hoje := dia(2026, time.September, 15)
+	painel, transacoes, _ := novoPainel(hoje)
+
+	// Anos diferentes: o saldo atual não é recortado por ano.
+	gravar(t, transacoes, "Salário 2024", 300000, domain.KindReceita, dia(2024, time.May, 5))
+	gravar(t, transacoes, "Mercado 2025", 100000, domain.KindDespesa, dia(2025, time.March, 10))
+	gravar(t, transacoes, "Salário 2026", 500000, domain.KindReceita, dia(2026, time.September, 5))
+
+	overview, err := painel.Overview(context.Background(), usuario, 2026, time.September)
+	if err != nil {
+		t.Fatalf("overview: %v", err)
+	}
+
+	if overview.SaldoAtual != 700000 {
+		t.Errorf("saldo atual = %d, esperava 700000", overview.SaldoAtual)
+	}
+}
+
+func TestSaldoAtualIgnoraOQueAindaNaoFoiPago(t *testing.T) {
+	hoje := dia(2026, time.September, 15)
+	painel, transacoes, _ := novoPainel(hoje)
+
+	gravar(t, transacoes, "Salário", 500000, domain.KindReceita, dia(2026, time.September, 5))
+	gravar(t, transacoes, "Aluguel", 200000, domain.KindDespesa, dia(2026, time.September, 25))
+
+	overview, _ := painel.Overview(context.Background(), usuario, 2026, time.September)
+
+	if overview.SaldoAtual != 500000 {
+		t.Errorf("saldo atual = %d, esperava 500000 (o aluguel ainda não caiu)", overview.SaldoAtual)
+	}
+}
+
+func TestSaldoAtualContaOsFixosJaOcorridos(t *testing.T) {
+	hoje := dia(2026, time.September, 15)
+	painel, _, fixos := novoPainel(hoje)
+
+	// Mensal desde julho: caiu em julho, agosto e setembro (dia 10).
+	_, _ = fixos.Create(context.Background(), domain.NewRecurringEntry{
+		UserID: usuario, Description: "Academia", AmountCents: 10000,
+		Kind: domain.KindDespesa, Frequency: domain.FrequencyMensal,
+		StartDate: dia(2026, time.July, 10),
+	})
+
+	overview, _ := painel.Overview(context.Background(), usuario, 2026, time.September)
+
+	if overview.SaldoAtual != -30000 {
+		t.Errorf("saldo atual = %d, esperava -30000 (três ocorrências já caíram)", overview.SaldoAtual)
+	}
+}
+
+func TestDespesasFixasSaoOCustoDeVidaDoMes(t *testing.T) {
+	painel, _, fixos := novoPainel(dia(2026, time.September, 30))
+
+	_, _ = fixos.Create(context.Background(), domain.NewRecurringEntry{
+		UserID: usuario, Description: "Academia", AmountCents: 15990,
+		Kind: domain.KindDespesa, Frequency: domain.FrequencyMensal,
+		StartDate: dia(2026, time.January, 20),
+	})
+	_, _ = fixos.Create(context.Background(), domain.NewRecurringEntry{
+		UserID: usuario, Description: "Aluguel", AmountCents: 200000,
+		Kind: domain.KindDespesa, Frequency: domain.FrequencyMensal,
+		StartDate: dia(2026, time.January, 5),
+	})
+	// Receita fixa não é custo de vida.
+	_, _ = fixos.Create(context.Background(), domain.NewRecurringEntry{
+		UserID: usuario, Description: "Salário", AmountCents: 500000,
+		Kind: domain.KindReceita, Frequency: domain.FrequencyMensal,
+		StartDate: dia(2026, time.January, 5),
+	})
+
+	overview, _ := painel.Overview(context.Background(), usuario, 2026, time.September)
+
+	if overview.DespesasFixas != 215990 {
+		t.Errorf("despesas fixas = %d, esperava 215990", overview.DespesasFixas)
+	}
+}
+
+func TestFixoSemanalPesaTodasAsOcorrenciasDoMes(t *testing.T) {
+	painel, _, fixos := novoPainel(dia(2026, time.September, 30))
+
+	// Semanal a partir de 03/09: cai em 3, 10, 17 e 24.
+	_, _ = fixos.Create(context.Background(), domain.NewRecurringEntry{
+		UserID: usuario, Description: "Feira", AmountCents: 10000,
+		Kind: domain.KindDespesa, Frequency: domain.FrequencySemanal,
+		StartDate: dia(2026, time.September, 3),
+	})
+
+	overview, _ := painel.Overview(context.Background(), usuario, 2026, time.September)
+
+	if overview.DespesasFixas != 40000 {
+		t.Errorf("despesas fixas = %d, esperava 40000 (quatro semanas)", overview.DespesasFixas)
+	}
+}

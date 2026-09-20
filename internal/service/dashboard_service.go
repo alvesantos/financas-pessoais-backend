@@ -80,8 +80,58 @@ func (s *DashboardService) Overview(
 	dashboard.Year.Saldo = dashboard.Year.Receitas - dashboard.Year.Despesas
 	dashboard.GastosPorTipo = expensesByKind(dashboard.Month.TotalPorTipo)
 	dashboard.MaiorGasto = biggestExpense(entriesDoMes)
+	dashboard.DespesasFixas = fixedExpenses(recurringEntries, domain.MonthPeriod(year, month))
+
+	saldoAtual, err := s.accumulatedBalance(ctx, userID, recurringEntries, today)
+	if err != nil {
+		return nil, err
+	}
+	dashboard.SaldoAtual = saldoAtual
 
 	return dashboard, nil
+}
+
+// accumulatedBalance é o saldo de verdade: tudo que já entrou e saiu desde a
+// primeira movimentação, sem recorte de período. Os lançamentos gravados são
+// somados no banco; os fixos são projetados desde o início de cada regra.
+func (s *DashboardService) accumulatedBalance(
+	ctx context.Context, userID int64, recurringEntries []domain.RecurringEntry, today time.Time,
+) (int64, error) {
+	total, err := s.transactions.SumUntil(ctx, userID, today)
+	if err != nil {
+		return 0, err
+	}
+
+	for _, entry := range recurringEntries {
+		// Cada regra é projetada do próprio início até hoje: o que ainda vai
+		// cair não conta no saldo atual.
+		period := domain.Period{From: domain.Day(entry.StartDate), To: today}
+
+		for _, occurrence := range entry.ProjectInto(period) {
+			total += occurrence.SignedAmount()
+		}
+	}
+
+	return total, nil
+}
+
+// fixedExpenses soma o que os fixos de saída pesam no período. Como a conta
+// usa as ocorrências projetadas, um fixo semanal pesa quatro ou cinco vezes
+// no mês, sem nenhuma conversão de frequência à mão.
+func fixedExpenses(entries []domain.RecurringEntry, period domain.Period) int64 {
+	var total int64
+
+	for _, entry := range entries {
+		if entry.Kind.IsIncome() {
+			continue
+		}
+
+		for _, occurrence := range entry.ProjectInto(period) {
+			total += occurrence.AmountCents
+		}
+	}
+
+	return total
 }
 
 func groupByMonth(entries []domain.Transaction) map[time.Month][]domain.Transaction {

@@ -138,7 +138,10 @@ sempre responde uma mensagem genérica.
 | GET | `/api/recurring` | Lista os lançamentos fixos |
 | POST | `/api/recurring` | Cria um lançamento fixo |
 | DELETE | `/api/recurring/{id}` | Apaga um fixo, e com ele as projeções |
-| GET | `/api/dashboard?year=&month=` | Métricas do ano e do mês |
+| GET | `/api/categories` | Lista as categorias |
+| POST | `/api/categories` | Cria uma categoria |
+| DELETE | `/api/categories/{id}` | Apaga uma categoria |
+| GET | `/api/dashboard?year=&month=` | Métricas do painel |
 
 Sem `year` e `month`, as rotas assumem o mês corrente.
 
@@ -176,6 +179,18 @@ O ciclo conta desde a data de início, não do começo do mês: um semanal que
 começa em 01/01 cai nos dias 3, 10, 17 e 24 de setembro. Um mensal do dia 31
 cai no último dia dos meses mais curtos, em vez de vazar para o mês seguinte.
 
+## Painel
+
+Dois números respondem "como estou hoje":
+
+- **Saldo atual** acumula tudo que já foi pago e recebido, desde a primeira
+  movimentação — sem recorte de mês ou ano. Os lançamentos gravados são
+  somados no banco (`SumUntil`); os fixos são projetados do início de cada
+  regra até hoje.
+- **Despesas fixas** é o custo de vida do mês: o que os fixos de saída somam
+  no período. Como a conta usa as ocorrências projetadas, um fixo semanal
+  pesa quatro ou cinco vezes sem nenhuma conversão de frequência à mão.
+
 ## Decisões
 
 - **Valores em centavos** (`BIGINT`). Ponto flutuante não é usado para dinheiro.
@@ -210,10 +225,10 @@ make test-all   # unitários + e2e
 
 ## Próximos passos
 
-A tabela `categories` já existe no schema, e `transactions` e
-`recurring_entries` já têm a coluna `category_id` — falta o CRUD e ligar a
-categoria ao lançamento. O gráfico de composição do painel hoje agrupa por
-tipo; quando a categoria entrar, ele passa a agrupar por categoria.
+As categorias já têm CRUD, e `transactions` e `recurring_entries` já têm a
+coluna `category_id` — **falta ligar uma coisa à outra**: escolher a
+categoria ao lançar, exibi-la na lista e agrupar por ela no painel, que hoje
+agrupa por tipo.
 
 Cada funcionalidade segue o mesmo caminho: porta em `domain/ports.go`,
 repositório em `repository/postgres/`, caso de uso em `service/`, DTO,

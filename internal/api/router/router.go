@@ -14,6 +14,7 @@ type Deps struct {
 	Auth           domain.AuthService
 	Transactions   domain.TransactionService
 	Recurring      domain.RecurringService
+	Categories     domain.CategoryService
 	Dashboard      domain.DashboardService
 	Tokens         domain.TokenIssuer
 	DB             controller.Pinger
@@ -30,6 +31,7 @@ func New(deps Deps) http.Handler {
 		health:       controller.NewHealthController(deps.DB),
 		transactions: controller.NewTransactionController(deps.Transactions),
 		recurring:    controller.NewRecurringController(deps.Recurring),
+		categories:   controller.NewCategoryController(deps.Categories),
 		dashboard:    controller.NewDashboardController(deps.Dashboard),
 	}
 
@@ -53,6 +55,7 @@ type controllers struct {
 	health       *controller.HealthController
 	transactions *controller.TransactionController
 	recurring    *controller.RecurringController
+	categories   *controller.CategoryController
 	dashboard    *controller.DashboardController
 }
 
@@ -81,6 +84,10 @@ func registerProtectedRoutes(mux *http.ServeMux, c controllers, authenticated mi
 	protect("GET /api/recurring", c.recurring.List)
 	protect("POST /api/recurring", c.recurring.Create)
 	protect("DELETE /api/recurring/{id}", c.recurring.Delete)
+
+	protect("GET /api/categories", c.categories.List)
+	protect("POST /api/categories", c.categories.Create)
+	protect("DELETE /api/categories/{id}", c.categories.Delete)
 
 	protect("GET /api/dashboard", c.dashboard.Overview)
 }

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -70,6 +71,22 @@ func (r *TransactionRepository) ListByPeriod(ctx context.Context, userID int64, 
 	}
 
 	return transactions, nil
+}
+
+// SumUntil deixa a soma no banco: trazer o histórico inteiro para o Go só
+// para somá-lo cresceria com o tempo de uso.
+func (r *TransactionRepository) SumUntil(ctx context.Context, userID int64, until time.Time) (int64, error) {
+	const query = `
+		SELECT COALESCE(SUM(CASE WHEN kind = 'receita' THEN amount ELSE -amount END), 0)
+		FROM transactions
+		WHERE user_id = $1 AND occurred_at <= $2`
+
+	var total int64
+	if err := r.pool.QueryRow(ctx, query, userID, domain.Day(until)).Scan(&total); err != nil {
+		return 0, domain.ErrInternal.Wrap(err)
+	}
+
+	return total, nil
 }
 
 func (r *TransactionRepository) Delete(ctx context.Context, userID, id int64) error {

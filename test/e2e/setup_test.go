@@ -70,6 +70,7 @@ func buildHandler(pool *pgxpool.Pool) http.Handler {
 	userRepository := postgres.NewUserRepository(pool)
 	transactionRepository := postgres.NewTransactionRepository(pool)
 	recurringRepository := postgres.NewRecurringRepository(pool)
+	categoryRepository := postgres.NewCategoryRepository(pool)
 
 	// Custo mínimo do bcrypt: a suíte testa o fluxo, não a criptografia.
 	hasher := auth.NewBcryptHasher(4)
@@ -80,6 +81,7 @@ func buildHandler(pool *pgxpool.Pool) http.Handler {
 		Auth:           service.NewAuthService(userRepository, hasher, tokens),
 		Transactions:   service.NewTransactionService(transactionRepository, recurringRepository, clock),
 		Recurring:      service.NewRecurringService(recurringRepository),
+		Categories:     service.NewCategoryService(categoryRepository),
 		Dashboard:      service.NewDashboardService(transactionRepository, recurringRepository, clock),
 		Tokens:         tokens,
 		DB:             controller.Pinger(pool),

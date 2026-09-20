@@ -55,6 +55,7 @@ func run() error {
 	userRepository := postgres.NewUserRepository(pool)
 	transactionRepository := postgres.NewTransactionRepository(pool)
 	recurringRepository := postgres.NewRecurringRepository(pool)
+	categoryRepository := postgres.NewCategoryRepository(pool)
 	hasher := auth.NewBcryptHasher(cfg.BcryptCost)
 	tokens := auth.NewJWTIssuer(cfg.JWTSecret, cfg.JWTIssuer, cfg.JWTExpiration)
 
@@ -63,6 +64,7 @@ func run() error {
 	authService := service.NewAuthService(userRepository, hasher, tokens)
 	transactionService := service.NewTransactionService(transactionRepository, recurringRepository, clock)
 	recurringService := service.NewRecurringService(recurringRepository)
+	categoryService := service.NewCategoryService(categoryRepository)
 	dashboardService := service.NewDashboardService(transactionRepository, recurringRepository, clock)
 
 	// Adaptador de entrada.
@@ -70,6 +72,7 @@ func run() error {
 		Auth:           authService,
 		Transactions:   transactionService,
 		Recurring:      recurringService,
+		Categories:     categoryService,
 		Dashboard:      dashboardService,
 		Tokens:         tokens,
 		DB:             controller.Pinger(pool),

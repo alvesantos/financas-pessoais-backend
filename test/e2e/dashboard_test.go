@@ -126,3 +126,59 @@ func TestPainelRecusaMesInvalido(t *testing.T) {
 		t.Errorf("esperava erro no campo month, veio %v", res.Body)
 	}
 }
+
+func TestPainelTrazSaldoAtualAcumulado(t *testing.T) {
+	resetDatabase(t)
+	token := contaComToken(t)
+
+	// Datas passadas, em anos diferentes: o saldo atual não é do ano.
+	criarLancamento(t, token, map[string]any{"amount_cents": 300000, "kind": "receita", "occurred_at": "2024-05-05"})
+	criarLancamento(t, token, map[string]any{"amount_cents": 100000, "kind": "despesa", "occurred_at": "2025-03-10"})
+
+	res := get(t, "/api/dashboard?year=2026&month=9", token)
+	assertStatus(t, res, http.StatusOK)
+
+	if got := number(t, res.Body, "saldo_atual_cents"); got != 200000 {
+		t.Errorf("saldo atual = %d, esperava 200000", got)
+	}
+}
+
+func TestSaldoAtualNaoContaLancamentoFuturo(t *testing.T) {
+	resetDatabase(t)
+	token := contaComToken(t)
+
+	criarLancamento(t, token, map[string]any{"amount_cents": 500000, "kind": "receita", "occurred_at": "2024-01-05"})
+	// Bem no futuro: não pode entrar no saldo atual.
+	criarLancamento(t, token, map[string]any{"amount_cents": 400000, "kind": "despesa", "occurred_at": "2099-01-05"})
+
+	res := get(t, "/api/dashboard?year=2026&month=9", token)
+
+	if got := number(t, res.Body, "saldo_atual_cents"); got != 500000 {
+		t.Errorf("saldo atual = %d, esperava 500000", got)
+	}
+}
+
+func TestPainelTrazDespesasFixasDoMes(t *testing.T) {
+	resetDatabase(t)
+	token := contaComToken(t)
+
+	criarFixo(t, token, map[string]any{
+		"description": "Academia", "amount_cents": 15990, "kind": "despesa",
+		"frequency": "mensal", "start_date": "2026-01-20",
+	})
+	criarFixo(t, token, map[string]any{
+		"description": "Aluguel", "amount_cents": 200000, "kind": "despesa",
+		"frequency": "mensal", "start_date": "2026-01-05",
+	})
+	// Receita fixa não entra no custo de vida.
+	criarFixo(t, token, map[string]any{
+		"description": "Salário", "amount_cents": 500000, "kind": "receita",
+		"frequency": "mensal", "start_date": "2026-01-05",
+	})
+
+	res := get(t, "/api/dashboard?year=2026&month=9", token)
+
+	if got := number(t, res.Body, "despesas_fixas_cents"); got != 215990 {
+		t.Errorf("despesas fixas = %d, esperava 215990", got)
+	}
+}

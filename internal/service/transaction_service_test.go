@@ -42,6 +42,16 @@ func (f *fakeTransactionRepo) ListByPeriod(_ context.Context, _ int64, period do
 	return out, nil
 }
 
+func (f *fakeTransactionRepo) SumUntil(_ context.Context, _ int64, until time.Time) (int64, error) {
+	var total int64
+	for _, item := range f.items {
+		if !item.OccurredAt.After(until) {
+			total += item.SignedAmount()
+		}
+	}
+	return total, nil
+}
+
 func (f *fakeTransactionRepo) Delete(_ context.Context, _, id int64) error {
 	for i, item := range f.items {
 		if item.ID == id {

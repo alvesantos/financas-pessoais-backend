@@ -20,6 +20,7 @@ type migration struct {
 var migrations = []migration{
 	{1, "schema inicial", schema001},
 	{2, "lancamentos e fixos", schema002},
+	{3, "categorias com os quatro tipos", schema003},
 }
 
 const schema001 = `
@@ -83,6 +84,21 @@ CREATE TABLE recurring_entries (
 );
 
 CREATE INDEX idx_recurring_user ON recurring_entries(user_id) WHERE active;
+`
+
+// schema003 alinha as categorias aos quatro tipos de lançamento. O banco
+// criado antes do controle de versão trazia a restrição antiga, com apenas
+// 'income' e 'expense'.
+const schema003 = `
+ALTER TABLE categories DROP CONSTRAINT IF EXISTS categories_kind_check;
+
+ALTER TABLE categories
+	ADD CONSTRAINT categories_kind_check
+	CHECK (kind IN ('receita','despesa','cartao_credito','investimento'));
+
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
+CREATE INDEX IF NOT EXISTS idx_categories_user ON categories(user_id);
 `
 
 // Migrate aplica, em ordem, as migrações que ainda faltam.
