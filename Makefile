@@ -1,4 +1,4 @@
-.PHONY: run build test tidy fmt vet db-up db-down db-reset psql clean
+.PHONY: run build test test-e2e test-all tidy fmt vet db-up db-down db-reset psql clean
 
 run:
 	go run ./cmd/api
@@ -34,3 +34,8 @@ psql:
 
 clean:
 	rm -rf bin
+
+test-e2e:
+	go test -tags=e2e -count=1 ./test/e2e/...
+
+test-all: test test-e2e

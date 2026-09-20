@@ -21,18 +21,21 @@ considere uma funcionalidade pronta sem os dois.
 - **Unitários**: nos casos de uso (`internal/service/`), com as portas do
   domínio substituídas por fakes. Sem banco, sem servidor. Veja
   `internal/service/auth_service_test.go` como referência.
-- **E2e**: exercitam a rota HTTP de ponta a ponta — requisição real,
-  roteador real, Postgres real — e verificam status, corpo e o efeito no
-  banco. Cubra o caminho feliz e as falhas (validação, não autorizado,
-  conflito).
+- **E2e**: em `test/e2e/`, atrás da tag de build `e2e`. Exercitam a rota HTTP
+  de ponta a ponta — requisição real, roteador real, Postgres real — e
+  verificam status, corpo e o efeito no banco. Cubra o caminho feliz e as
+  falhas (validação, não autorizado, conflito). Rodam contra o banco
+  `financas_test`, criado e limpo pela própria suíte.
 - Testes de erro são parte da funcionalidade, não um extra.
-- Rode `make test` antes de commitar. Não commite com teste vermelho.
+- Rode `make test-all` antes de commitar. Não commite com teste vermelho.
 
 ## Comandos
 
 ```bash
 make run        # sobe a API em :8080
-make test       # go test ./... -race -cover
+make test       # unitários, go test ./... -race -cover
+make test-e2e   # e2e contra o Postgres (exige make db-up)
+make test-all   # unitários + e2e
 make vet        # go vet
 make build      # compila em bin/api
 make db-up      # Postgres em localhost:5434

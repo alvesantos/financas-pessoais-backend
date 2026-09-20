@@ -29,7 +29,9 @@ O schema é aplicado na primeira execução; não há passo de migração à par
 ```bash
 make run        # sobe a API
 make build      # compila em bin/api
-make test       # testes com -race -cover
+make test       # testes unitários, com -race -cover
+make test-e2e   # testes e2e contra o Postgres
+make test-all   # unitários + e2e
 make vet        # go vet
 make db-up      # sobe o Postgres e espera ficar saudável
 make db-down    # para o Postgres (mantém os dados)
@@ -145,12 +147,24 @@ curl -X POST http://localhost:8080/api/auth/login \
 
 ## Testes
 
-`internal/service/auth_service_test.go` exercita os casos de uso com
+**Unitários** (`internal/service/`): exercitam os casos de uso com
 repositório, hasher e emissor falsos — sem banco e sem servidor. É o retorno
 prático de depender de interfaces.
 
+**E2e** (`test/e2e/`, atrás da tag de build `e2e`): sobem o roteador real em
+um `httptest.Server` e batem nas rotas com um cliente HTTP de verdade, contra
+um Postgres de verdade. Verificam status, corpo e o efeito no banco — que a
+senha foi hasheada, que o hash nunca aparece na resposta, que o e-mail é
+normalizado, que senha errada e e-mail inexistente são indistinguíveis.
+
+A suíte usa o banco `financas_test`, separado do de desenvolvimento. Ela o
+cria na primeira execução e limpa as tabelas entre os testes; nenhum dado de
+desenvolvimento é tocado. Para apontar para outro banco, defina
+`TEST_DATABASE_URL`.
+
 ```bash
-make test
+make db-up      # o Postgres precisa estar no ar
+make test-all   # unitários + e2e
 ```
 
 ## Próximos passos
