@@ -99,7 +99,7 @@ func (s *DashboardService) Overview(
 	dashboard.GastosPorTipo = expensesByKind(dashboard.Month.TotalPorTipo)
 	dashboard.GastosPorCategoria = expensesByCategory(entriesDoMes)
 	dashboard.MaiorGasto = biggestExpense(entriesDoMes)
-	dashboard.DespesasFixas = fixedExpenses(recurringEntries, domain.MonthPeriod(year, month))
+	dashboard.DespesasFixas = fixedExpenses(recurringEntries, today)
 
 	saldoAtual, err := s.accumulatedBalance(ctx, userID, recurringEntries, debts, today)
 	if err != nil {
@@ -171,20 +171,21 @@ func (s *DashboardService) accumulatedBalance(
 	return total, nil
 }
 
-// fixedExpenses soma o que os fixos de saída pesam no período. Como a conta
-// usa as ocorrências projetadas, um fixo semanal pesa quatro ou cinco vezes
-// no mês, sem nenhuma conversão de frequência à mão.
-func fixedExpenses(entries []domain.RecurringEntry, period domain.Period) int64 {
+// fixedExpenses é o custo de vida: todos os fixos de saída que a pessoa tem,
+// cada um convertido para o quanto pesa em um mês médio.
+//
+// Não é "o que vence neste mês" de propósito. Um fixo que só começa mês que
+// vem já é um compromisso assumido, e um semestral precisa pesar todo mês,
+// senão o custo de vida pularia conforme o calendário.
+func fixedExpenses(entries []domain.RecurringEntry, today time.Time) int64 {
 	var total int64
 
 	for _, entry := range entries {
-		if entry.Kind.IsIncome() {
+		if entry.Kind.IsIncome() || !entry.CountsAsCostOn(today) {
 			continue
 		}
 
-		for _, occurrence := range entry.ProjectInto(period) {
-			total += occurrence.AmountCents
-		}
+		total += entry.MonthlyCostCents()
 	}
 
 	return total

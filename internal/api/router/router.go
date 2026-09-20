@@ -86,6 +86,7 @@ func registerProtectedRoutes(mux *http.ServeMux, c controllers, authenticated mi
 	protect("GET /api/transactions", c.transactions.List)
 	protect("POST /api/transactions", c.transactions.Create)
 	protect("PUT /api/transactions/{id}", c.transactions.Update)
+	protect("POST /api/transactions/occurrence", c.transactions.PayOccurrence)
 	protect("GET /api/transactions/summary", c.transactions.Summary)
 	protect("DELETE /api/transactions/{id}", c.transactions.Delete)
 

@@ -241,15 +241,15 @@ func TestDespesasFixasSaoOCustoDeVidaDoMes(t *testing.T) {
 
 	overview, _ := painel.Overview(context.Background(), usuario, 2026, time.September)
 
+	// Os dois são mensais, então o custo mensal é a soma direta.
 	if overview.DespesasFixas != 215990 {
 		t.Errorf("despesas fixas = %d, esperava 215990", overview.DespesasFixas)
 	}
 }
 
-func TestFixoSemanalPesaTodasAsOcorrenciasDoMes(t *testing.T) {
+func TestFixoSemanalEspalhaOCustoPeloAno(t *testing.T) {
 	painel, _, fixos := novoPainel(dia(2026, time.September, 30))
 
-	// Semanal a partir de 03/09: cai em 3, 10, 17 e 24.
 	_, _ = fixos.Create(context.Background(), domain.NewRecurringEntry{
 		UserID: usuario, Description: "Feira", AmountCents: 10000,
 		Kind: domain.KindDespesa, Frequency: domain.FrequencySemanal,
@@ -258,8 +258,61 @@ func TestFixoSemanalPesaTodasAsOcorrenciasDoMes(t *testing.T) {
 
 	overview, _ := painel.Overview(context.Background(), usuario, 2026, time.September)
 
-	if overview.DespesasFixas != 40000 {
-		t.Errorf("despesas fixas = %d, esperava 40000 (quatro semanas)", overview.DespesasFixas)
+	// 52 semanas divididas por 12 meses, não "quantas caíram em setembro":
+	// senão o custo de vida pularia conforme o mês tivesse 4 ou 5 semanas.
+	if esperado := int64(10000 * 52 / 12); overview.DespesasFixas != esperado {
+		t.Errorf("despesas fixas = %d, esperava %d", overview.DespesasFixas, esperado)
+	}
+}
+
+func TestFixoQueSoComecaDepoisJaContaNoCustoDeVida(t *testing.T) {
+	// Hoje é setembro; o fixo começa em outubro, mas o compromisso já existe.
+	painel, _, fixos, _ := novoPainelComDividas(dia(2026, time.September, 20))
+
+	_, _ = fixos.Create(context.Background(), domain.NewRecurringEntry{
+		UserID: usuario, Description: "Internet", AmountCents: 15000,
+		Kind: domain.KindDespesa, Frequency: domain.FrequencyMensal,
+		StartDate: dia(2026, time.October, 15),
+	})
+
+	overview, _ := painel.Overview(context.Background(), usuario, 2026, time.September)
+
+	if overview.DespesasFixas != 15000 {
+		t.Errorf("despesas fixas = %d, esperava 15000", overview.DespesasFixas)
+	}
+}
+
+func TestFixoEncerradoSaiDoCustoDeVida(t *testing.T) {
+	painel, _, fixos, _ := novoPainelComDividas(dia(2026, time.September, 20))
+
+	fim := dia(2026, time.June, 30)
+	_, _ = fixos.Create(context.Background(), domain.NewRecurringEntry{
+		UserID: usuario, Description: "Curso", AmountCents: 20000,
+		Kind: domain.KindDespesa, Frequency: domain.FrequencyMensal,
+		StartDate: dia(2026, time.January, 10), EndDate: &fim,
+	})
+
+	overview, _ := painel.Overview(context.Background(), usuario, 2026, time.September)
+
+	if overview.DespesasFixas != 0 {
+		t.Errorf("despesas fixas = %d, esperava 0 depois do fim", overview.DespesasFixas)
+	}
+}
+
+func TestFixoSemestralPesaTodoMes(t *testing.T) {
+	painel, _, fixos, _ := novoPainelComDividas(dia(2026, time.September, 20))
+
+	_, _ = fixos.Create(context.Background(), domain.NewRecurringEntry{
+		UserID: usuario, Description: "IPVA", AmountCents: 120000,
+		Kind: domain.KindDespesa, Frequency: domain.FrequencySemestral,
+		StartDate: dia(2026, time.January, 10),
+	})
+
+	overview, _ := painel.Overview(context.Background(), usuario, 2026, time.September)
+
+	// Duas vezes por ano espalhadas em doze meses.
+	if esperado := int64(120000 * 2 / 12); overview.DespesasFixas != esperado {
+		t.Errorf("despesas fixas = %d, esperava %d", overview.DespesasFixas, esperado)
 	}
 }
 

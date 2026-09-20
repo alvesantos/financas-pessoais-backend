@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -31,8 +32,9 @@ func (r *TransactionRepository) Create(ctx context.Context, input domain.NewTran
 	// tabelas: o INSERT grava os ids e o SELECT seguinte traz nome e cor.
 	const query = `
 		INSERT INTO transactions
-			(user_id, description, amount, kind, occurred_at, category_id, paid, credit_card_id, invoice_month)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			(user_id, description, amount, kind, occurred_at, category_id, paid,
+			 credit_card_id, invoice_month, recurring_id, debt_id, installment_number)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING id`
 
 	var id int64
@@ -46,7 +48,16 @@ func (r *TransactionRepository) Create(ctx context.Context, input domain.NewTran
 		input.Paid,
 		input.CreditCardID,
 		invoiceMonth,
+		input.RecurringID,
+		input.DebtID,
+		input.InstallmentNumber,
 	).Scan(&id)
+
+	// O índice único impede a mesma ocorrência virar linha duas vezes.
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == uniqueViolation {
+		return nil, domain.ErrOccurrenceAlreadyPaid.Wrap(err)
+	}
 	if err != nil {
 		return nil, domain.ErrInternal.Wrap(err)
 	}
@@ -59,6 +70,7 @@ func (r *TransactionRepository) Create(ctx context.Context, input domain.NewTran
 const transactionColumns = `
 	t.id, t.user_id, t.description, t.amount, t.kind, t.occurred_at, t.created_at,
 	t.paid, t.credit_card_id, cc.name, t.invoice_month,
+	t.recurring_id, t.debt_id, t.installment_number,
 	t.category_id, c.name, c.color`
 
 func (r *TransactionRepository) findByID(ctx context.Context, userID, id int64) (*domain.Transaction, error) {
@@ -90,6 +102,7 @@ func scanTransaction(row rowScanner, t *domain.Transaction) error {
 		&t.ID, &t.UserID, &t.Description, &t.AmountCents, &t.Kind,
 		&t.OccurredAt, &t.CreatedAt,
 		&t.Paid, &t.CreditCardID, &t.CreditCardName, &t.InvoiceMonth,
+		&t.RecurringID, &t.DebtID, &t.InstallmentNumber,
 		&t.CategoryID, &t.CategoryName, &t.CategoryColor,
 	)
 }

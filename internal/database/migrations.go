@@ -23,6 +23,7 @@ var migrations = []migration{
 	{3, "categorias com os quatro tipos", schema003},
 	{4, "dividas parceladas", schema004},
 	{5, "amortizacao, quitacao e cartoes de credito", schema005},
+	{6, "ocorrencias materializadas", schema006},
 }
 
 const schema001 = `
@@ -156,6 +157,28 @@ ALTER TABLE transactions ADD COLUMN IF NOT EXISTS invoice_month DATE;
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS paid BOOLEAN NOT NULL DEFAULT false;
 UPDATE transactions SET paid = (occurred_at <= CURRENT_DATE);
 ALTER TABLE transactions ALTER COLUMN paid SET DEFAULT true;
+`
+
+// schema006 permite que uma ocorrência projetada vire linha de verdade.
+// Enquanto a pessoa não diz nada, a parcela do fixo ou da dívida segue
+// calculada na leitura; ao marcar que pagou, ela é gravada e a projeção
+// daquela data para de aparecer.
+const schema006 = `
+ALTER TABLE transactions
+	ADD COLUMN IF NOT EXISTS recurring_id BIGINT REFERENCES recurring_entries(id) ON DELETE CASCADE;
+
+ALTER TABLE transactions
+	ADD COLUMN IF NOT EXISTS debt_id BIGINT REFERENCES debts(id) ON DELETE CASCADE;
+
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS installment_number INTEGER;
+
+-- Uma ocorrência só pode virar linha uma vez. A restrição resolve a corrida
+-- entre dois cliques, em vez de um SELECT antes do INSERT.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_recurring_occurrence
+	ON transactions(recurring_id, occurred_at) WHERE recurring_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_debt_installment
+	ON transactions(debt_id, installment_number) WHERE debt_id IS NOT NULL;
 `
 
 // Migrate aplica, em ordem, as migrações que ainda faltam.

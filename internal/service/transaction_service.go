@@ -72,6 +72,81 @@ func (s *TransactionService) Update(
 	return s.transactions.Update(ctx, domain.UpdateTransaction{ID: input.ID, NewTransaction: prepared})
 }
 
+// PayOccurrence transforma uma ocorrência projetada em lançamento pago.
+//
+// Enquanto a pessoa não diz nada, a parcela do fixo ou da dívida segue
+// calculada na leitura. Ao marcar que pagou, ela vira linha de verdade e a
+// projeção daquela data para de aparecer, em vez de duplicar.
+func (s *TransactionService) PayOccurrence(
+	ctx context.Context, input domain.PayOccurrence,
+) (*domain.Transaction, error) {
+	if !input.Origin.Valid() {
+		return nil, domain.ErrValidation.WithFields(map[string]string{
+			"origin": "origem desconhecida",
+		})
+	}
+
+	occurredAt := domain.Day(input.OccurredAt)
+
+	if input.Origin == domain.OriginRecurring {
+		return s.payRecurringOccurrence(ctx, input, occurredAt)
+	}
+
+	return s.payDebtInstallment(ctx, input, occurredAt)
+}
+
+func (s *TransactionService) payRecurringOccurrence(
+	ctx context.Context, input domain.PayOccurrence, occurredAt time.Time,
+) (*domain.Transaction, error) {
+	entry, err := s.recurring.FindByID(ctx, input.UserID, input.OriginID)
+	if err != nil {
+		return nil, err
+	}
+
+	// A data precisa ser mesmo uma ocorrência: marcar um dia qualquer como
+	// pago inventaria um lançamento que o fixo nunca gerou.
+	if !entry.OccursOn(occurredAt) {
+		return nil, domain.ErrOccurrenceNotFound
+	}
+
+	return s.transactions.Create(ctx, domain.NewTransaction{
+		UserID:      input.UserID,
+		Description: entry.Description,
+		AmountCents: entry.AmountCents,
+		Kind:        entry.Kind,
+		OccurredAt:  occurredAt,
+		CategoryID:  entry.CategoryID,
+		Paid:        true,
+		RecurringID: &entry.ID,
+	})
+}
+
+func (s *TransactionService) payDebtInstallment(
+	ctx context.Context, input domain.PayOccurrence, occurredAt time.Time,
+) (*domain.Transaction, error) {
+	debt, err := s.debts.FindByID(ctx, input.UserID, input.OriginID)
+	if err != nil {
+		return nil, err
+	}
+
+	number, ok := debt.InstallmentNumberOn(occurredAt)
+	if !ok {
+		return nil, domain.ErrOccurrenceNotFound
+	}
+
+	return s.transactions.Create(ctx, domain.NewTransaction{
+		UserID:            input.UserID,
+		Description:       debt.Description,
+		AmountCents:       debt.InstallmentCents,
+		Kind:              debt.Kind,
+		OccurredAt:        occurredAt,
+		CategoryID:        debt.CategoryID,
+		Paid:              true,
+		DebtID:            &debt.ID,
+		InstallmentNumber: &number,
+	})
+}
+
 // prepare aplica as regras comuns à criação e à edição: categoria válida,
 // descrição padrão e o mês da fatura quando o lançamento é de cartão.
 func (s *TransactionService) prepare(
@@ -144,10 +219,40 @@ func (s *TransactionService) ListMonth(
 		return nil, err
 	}
 
-	entries := append(stored, projected...)
-	entries = append(entries, installments...)
+	// Ocorrências que já viraram linha não são projetadas de novo.
+	materialized := occurrenceKeysOf(stored)
+
+	entries := stored
+	entries = append(entries, keepUnmaterialized(projected, materialized)...)
+	entries = append(entries, keepUnmaterialized(installments, materialized)...)
 
 	return sortByDate(entries), nil
+}
+
+// occurrenceKeysOf reúne as ocorrências que já existem como linha.
+func occurrenceKeysOf(stored []domain.Transaction) map[string]bool {
+	keys := map[string]bool{}
+
+	for _, entry := range stored {
+		if key, ok := entry.OccurrenceKey(); ok {
+			keys[key] = true
+		}
+	}
+
+	return keys
+}
+
+func keepUnmaterialized(projected []domain.Transaction, materialized map[string]bool) []domain.Transaction {
+	kept := projected[:0]
+
+	for _, entry := range projected {
+		if key, ok := entry.OccurrenceKey(); ok && materialized[key] {
+			continue
+		}
+		kept = append(kept, entry)
+	}
+
+	return kept
 }
 
 // Summary calcula os saldos do mês.

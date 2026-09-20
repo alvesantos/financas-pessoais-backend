@@ -40,6 +40,31 @@ type UpdateRecurringEntry struct {
 	Active bool
 }
 
+// MonthlyCostCents é quanto o fixo pesa em um mês médio.
+//
+// A conta passa pelo ano porque nem toda frequência cabe redonda em um mês:
+// um semanal cai quatro ou cinco vezes conforme o mês, e um semestral não
+// cai em dez deles. Espalhar pelo ano dá um número estável, que é o que se
+// espera de um custo de vida.
+func (r RecurringEntry) MonthlyCostCents() int64 {
+	return r.AmountCents * int64(r.Frequency.OccurrencesPerYear()) / 12
+}
+
+// CountsAsCostOn diz se o fixo ainda representa um custo na data informada.
+// Um fixo inativo ou já encerrado saiu do orçamento; um que só começa mês
+// que vem continua sendo um compromisso assumido.
+func (r RecurringEntry) CountsAsCostOn(today time.Time) bool {
+	if !r.Active {
+		return false
+	}
+
+	if r.EndDate != nil && Day(*r.EndDate).Before(Day(today)) {
+		return false
+	}
+
+	return true
+}
+
 // OccurrencesIn devolve, em ordem, as datas em que o fixo cai dentro do
 // período. A regra nunca produz datas antes do início nem depois do fim.
 func (r RecurringEntry) OccurrencesIn(period Period) []time.Time {
@@ -75,6 +100,12 @@ func (r RecurringEntry) OccurrencesIn(period Period) []time.Time {
 	return occurrencesByMonths(start, period.From, limit, step)
 }
 
+// OccursOn diz se o fixo cai exatamente na data informada.
+func (r RecurringEntry) OccursOn(date time.Time) bool {
+	date = Day(date)
+	return len(r.OccurrencesIn(Period{From: date, To: date})) > 0
+}
+
 // ProjectInto converte as ocorrências do período em lançamentos projetados.
 func (r RecurringEntry) ProjectInto(period Period) []Transaction {
 	dates := r.OccurrencesIn(period)
@@ -85,6 +116,7 @@ func (r RecurringEntry) ProjectInto(period Period) []Transaction {
 		frequency := r.Frequency
 
 		projected = append(projected, Transaction{
+			Projected:     true,
 			UserID:        r.UserID,
 			Description:   r.Description,
 			AmountCents:   r.AmountCents,

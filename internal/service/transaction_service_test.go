@@ -17,6 +17,18 @@ type fakeTransactionRepo struct {
 }
 
 func (f *fakeTransactionRepo) Create(_ context.Context, input domain.NewTransaction) (*domain.Transaction, error) {
+	novo := domain.Transaction{
+		RecurringID: input.RecurringID, DebtID: input.DebtID,
+		InstallmentNumber: input.InstallmentNumber, OccurredAt: input.OccurredAt,
+	}
+	if chave, tem := novo.OccurrenceKey(); tem {
+		for _, item := range f.items {
+			if existente, _ := item.OccurrenceKey(); existente == chave {
+				return nil, domain.ErrOccurrenceAlreadyPaid
+			}
+		}
+	}
+
 	f.nextID++
 
 	t := domain.Transaction{
@@ -28,6 +40,10 @@ func (f *fakeTransactionRepo) Create(_ context.Context, input domain.NewTransact
 		OccurredAt:  input.OccurredAt,
 		CategoryID:  input.CategoryID,
 		Paid:        input.Paid,
+
+		RecurringID:       input.RecurringID,
+		DebtID:            input.DebtID,
+		InstallmentNumber: input.InstallmentNumber,
 	}
 	f.items = append(f.items, t)
 
@@ -122,6 +138,15 @@ func (f *fakeRecurringRepo) Update(_ context.Context, input domain.UpdateRecurri
 
 func (f *fakeRecurringRepo) List(_ context.Context, _ int64) ([]domain.RecurringEntry, error) {
 	return f.items, nil
+}
+
+func (f *fakeRecurringRepo) FindByID(_ context.Context, _, id int64) (*domain.RecurringEntry, error) {
+	for i := range f.items {
+		if f.items[i].ID == id {
+			return &f.items[i], nil
+		}
+	}
+	return nil, domain.ErrRecurringNotFound
 }
 
 func (f *fakeRecurringRepo) ListActive(_ context.Context, _ int64) ([]domain.RecurringEntry, error) {

@@ -115,6 +115,29 @@ func (c *TransactionController) Update(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, dto.NewTransactionResponse(*updated))
 }
 
+// PayOccurrence marca uma ocorrência projetada como paga, gravando-a.
+// POST /api/transactions/occurrence
+func (c *TransactionController) PayOccurrence(w http.ResponseWriter, r *http.Request) {
+	userID, ok := currentUser(w, r)
+	if !ok {
+		return
+	}
+
+	body, err := request.DecodeJSON[dto.PayOccurrenceRequest](r, w)
+	if err != nil {
+		response.Fail(w, r, err)
+		return
+	}
+
+	created, err := c.transactions.PayOccurrence(r.Context(), body.ToDomain(userID))
+	if err != nil {
+		response.Fail(w, r, err)
+		return
+	}
+
+	response.JSON(w, http.StatusCreated, dto.NewTransactionResponse(*created))
+}
+
 // Delete apaga um lançamento. DELETE /api/transactions/{id}
 func (c *TransactionController) Delete(w http.ResponseWriter, r *http.Request) {
 	userID, ok := currentUser(w, r)

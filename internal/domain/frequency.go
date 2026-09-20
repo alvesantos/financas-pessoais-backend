@@ -40,6 +40,27 @@ func (f Frequency) Label() string {
 	return frequencyLabels[f]
 }
 
+// OccurrencesPerYear é quantas vezes a frequência se repete em um ano. É o
+// que permite comparar um gasto semanal com um anual na mesma régua.
+func (f Frequency) OccurrencesPerYear() int {
+	switch f {
+	case FrequencyDiario:
+		return 365
+	case FrequencySemanal:
+		return 52
+	case FrequencyQuinzenal:
+		return 26
+	case FrequencyMensal:
+		return 12
+	case FrequencySemestral:
+		return 2
+	case FrequencyAnual:
+		return 1
+	default:
+		return 0
+	}
+}
+
 // stepInDays é o intervalo das frequências contadas em dias. As demais são
 // contadas em meses, porque "todo dia 20" não é um número fixo de dias.
 func (f Frequency) stepInDays() (int, bool) {

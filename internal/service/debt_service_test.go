@@ -183,3 +183,143 @@ func TestMesDepoisDaUltimaParcelaFicaLimpo(t *testing.T) {
 		t.Errorf("a dívida acabou, esperava nenhuma parcela, veio %d", len(entradas))
 	}
 }
+
+func TestMarcarParcelaDeFixoComoPaga(t *testing.T) {
+	svc, _, fixos, _ := novoServicoComDividas(dia(2026, time.September, 30))
+
+	criado, err := fixos.Create(context.Background(), domain.NewRecurringEntry{
+		UserID: usuario, Description: "Academia", AmountCents: 15990,
+		Kind: domain.KindDespesa, Frequency: domain.FrequencyMensal,
+		StartDate: dia(2026, time.January, 20),
+	})
+	if err != nil {
+		t.Fatalf("criar fixo: %v", err)
+	}
+
+	pago, err := svc.PayOccurrence(context.Background(), domain.PayOccurrence{
+		UserID: usuario, Origin: domain.OriginRecurring, OriginID: criado.ID,
+		OccurredAt: dia(2026, time.September, 20),
+	})
+	if err != nil {
+		t.Fatalf("marcar como pago: %v", err)
+	}
+
+	if !pago.Paid {
+		t.Error("a ocorrência marcada precisa vir paga")
+	}
+	if pago.AmountCents != 15990 || pago.Description != "Academia" {
+		t.Errorf("o lançamento precisa copiar o fixo, veio %q com %d", pago.Description, pago.AmountCents)
+	}
+
+	// A projeção daquela data para de aparecer, em vez de duplicar.
+	entradas, _ := svc.ListMonth(context.Background(), usuario, 2026, time.September)
+	if len(entradas) != 1 {
+		t.Fatalf("esperava 1 lançamento, veio %d", len(entradas))
+	}
+	if entradas[0].IsProjected() {
+		t.Error("depois de marcada, a ocorrência é linha de verdade, não projeção")
+	}
+}
+
+func TestMarcarOMesmoFixoDuasVezesEhRecusado(t *testing.T) {
+	svc, _, fixos, _ := novoServicoComDividas(dia(2026, time.September, 30))
+
+	criado, _ := fixos.Create(context.Background(), domain.NewRecurringEntry{
+		UserID: usuario, Description: "Academia", AmountCents: 15990,
+		Kind: domain.KindDespesa, Frequency: domain.FrequencyMensal,
+		StartDate: dia(2026, time.January, 20),
+	})
+
+	entrada := domain.PayOccurrence{
+		UserID: usuario, Origin: domain.OriginRecurring, OriginID: criado.ID,
+		OccurredAt: dia(2026, time.September, 20),
+	}
+
+	if _, err := svc.PayOccurrence(context.Background(), entrada); err != nil {
+		t.Fatalf("marcar como pago: %v", err)
+	}
+
+	if _, err := svc.PayOccurrence(context.Background(), entrada); err == nil {
+		t.Error("esperava recusa ao marcar a mesma ocorrência de novo")
+	}
+}
+
+func TestMarcarDataQueNaoEhOcorrenciaEhRecusado(t *testing.T) {
+	svc, _, fixos, _ := novoServicoComDividas(dia(2026, time.September, 30))
+
+	criado, _ := fixos.Create(context.Background(), domain.NewRecurringEntry{
+		UserID: usuario, Description: "Academia", AmountCents: 15990,
+		Kind: domain.KindDespesa, Frequency: domain.FrequencyMensal,
+		StartDate: dia(2026, time.January, 20),
+	})
+
+	// O fixo cai no dia 20, não no 21.
+	_, err := svc.PayOccurrence(context.Background(), domain.PayOccurrence{
+		UserID: usuario, Origin: domain.OriginRecurring, OriginID: criado.ID,
+		OccurredAt: dia(2026, time.September, 21),
+	})
+
+	if err == nil {
+		t.Error("marcar um dia qualquer inventaria um lançamento que o fixo nunca gerou")
+	}
+}
+
+func TestMarcarParcelaDeDividaComoPaga(t *testing.T) {
+	svc, _, _, dividas := novoServicoComDividas(dia(2026, time.December, 31))
+
+	criada, err := dividas.Create(context.Background(), emprestimoDoEnunciado())
+	if err != nil {
+		t.Fatalf("registrar dívida: %v", err)
+	}
+
+	pago, err := svc.PayOccurrence(context.Background(), domain.PayOccurrence{
+		UserID: usuario, Origin: domain.OriginDebt, OriginID: criada.ID,
+		OccurredAt: dia(2026, time.December, 7),
+	})
+	if err != nil {
+		t.Fatalf("marcar parcela: %v", err)
+	}
+
+	if pago.InstallmentNumber == nil || *pago.InstallmentNumber != 3 {
+		t.Errorf("parcela = %v, esperava a terceira", pago.InstallmentNumber)
+	}
+	if pago.AmountCents != 87766 {
+		t.Errorf("valor = %d, esperava 87766", pago.AmountCents)
+	}
+
+	entradas, _ := svc.ListMonth(context.Background(), usuario, 2026, time.December)
+	if len(entradas) != 1 {
+		t.Fatalf("esperava 1 lançamento, veio %d", len(entradas))
+	}
+	if entradas[0].IsProjected() {
+		t.Error("a parcela marcada virou linha, não é mais projeção")
+	}
+}
+
+func TestOcorrenciaMarcadaEntraNoSaldoAtual(t *testing.T) {
+	hoje := dia(2026, time.September, 30)
+	svc, _, fixos, _ := novoServicoComDividas(hoje)
+
+	criado, _ := fixos.Create(context.Background(), domain.NewRecurringEntry{
+		UserID: usuario, Description: "Academia", AmountCents: 15990,
+		Kind: domain.KindDespesa, Frequency: domain.FrequencyMensal,
+		StartDate: dia(2026, time.January, 20),
+	})
+
+	if _, err := svc.PayOccurrence(context.Background(), domain.PayOccurrence{
+		UserID: usuario, Origin: domain.OriginRecurring, OriginID: criado.ID,
+		OccurredAt: dia(2026, time.September, 20),
+	}); err != nil {
+		t.Fatalf("marcar como pago: %v", err)
+	}
+
+	resumo, _ := svc.Summary(context.Background(), usuario, 2026, time.September)
+
+	// Não pode contar duas vezes: a projeção sumiu e a linha entrou.
+	if resumo.SaldoPrevisto != -15990 {
+		t.Errorf("saldo previsto = %d, esperava -15990", resumo.SaldoPrevisto)
+	}
+	if resumo.SaldoAtual != -15990 {
+		t.Errorf("saldo atual = %d, esperava -15990", resumo.SaldoAtual)
+	}
+}

@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"strconv"
+	"time"
+)
 
 // Transaction é um lançamento. O valor é sempre positivo e em centavos; o
 // efeito sobre o saldo vem do tipo.
@@ -29,12 +32,16 @@ type Transaction struct {
 	CategoryName  *string
 	CategoryColor *string
 
-	// Preenchidos quando o lançamento foi projetado de um fixo. Projeções
-	// não existem como linha no banco e não podem ser apagadas isoladamente.
+	// Projected diz que o lançamento foi calculado na leitura em vez de lido
+	// do banco. Uma ocorrência materializada carrega a origem abaixo e
+	// mesmo assim não é projeção: ela virou linha.
+	Projected bool
+
+	// Origem, quando o lançamento vem de um fixo.
 	RecurringID *int64
 	Frequency   *Frequency
 
-	// Preenchidos quando o lançamento é a parcela de uma dívida.
+	// Origem, quando o lançamento é parcela de uma dívida.
 	DebtID            *int64
 	InstallmentNumber *int
 	InstallmentsTotal *int
@@ -42,7 +49,20 @@ type Transaction struct {
 
 // IsProjected diz se o lançamento foi calculado em vez de lido do banco.
 func (t Transaction) IsProjected() bool {
-	return t.RecurringID != nil || t.DebtID != nil
+	return t.Projected
+}
+
+// OccurrenceKey identifica uma ocorrência pela origem e pela data, que é
+// como a projeção descobre que aquela data já virou linha.
+func (t Transaction) OccurrenceKey() (string, bool) {
+	if t.RecurringID != nil {
+		return "fixo:" + strconv.FormatInt(*t.RecurringID, 10) + ":" + t.OccurredAt.Format("2006-01-02"), true
+	}
+	if t.DebtID != nil && t.InstallmentNumber != nil {
+		return "divida:" + strconv.FormatInt(*t.DebtID, 10) + ":" + strconv.Itoa(*t.InstallmentNumber), true
+	}
+
+	return "", false
 }
 
 // SignedAmount é o efeito do lançamento sobre o saldo.
@@ -61,10 +81,41 @@ type NewTransaction struct {
 	Paid         bool
 	CreditCardID *int64
 	Invoice      InvoiceChoice
+
+	// Origem, quando o lançamento materializa uma ocorrência.
+	RecurringID       *int64
+	DebtID            *int64
+	InstallmentNumber *int
 	// InvoiceMonth é calculado pelo serviço a partir do cartão e da escolha
 	// de fatura, para o repositório não precisar conhecer essa regra.
 	InvoiceMonth *time.Time
 }
+
+// OccurrenceOrigin diz de onde a ocorrência veio.
+type OccurrenceOrigin string
+
+const (
+	OriginRecurring OccurrenceOrigin = "fixo"
+	OriginDebt      OccurrenceOrigin = "divida"
+)
+
+func (o OccurrenceOrigin) Valid() bool {
+	return o == OriginRecurring || o == OriginDebt
+}
+
+// PayOccurrence são os dados para transformar uma ocorrência projetada em
+// lançamento pago.
+type PayOccurrence struct {
+	UserID     int64
+	Origin     OccurrenceOrigin
+	OriginID   int64
+	OccurredAt time.Time
+}
+
+var (
+	ErrOccurrenceNotFound    = NewError(CodeNotFound, "ocorrência não encontrada nessa data")
+	ErrOccurrenceAlreadyPaid = NewError(CodeConflict, "esta ocorrência já foi marcada como paga")
+)
 
 // UpdateTransaction são os dados para reescrever um lançamento.
 type UpdateTransaction struct {

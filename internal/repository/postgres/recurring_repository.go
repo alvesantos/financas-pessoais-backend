@@ -2,8 +2,11 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -105,6 +108,21 @@ func (r *RecurringRepository) List(ctx context.Context, userID int64) ([]domain.
 func (r *RecurringRepository) ListActive(ctx context.Context, userID int64) ([]domain.RecurringEntry, error) {
 	return r.list(ctx, `SELECT `+recurringColumns+recurringFrom+`
 		WHERE r.user_id = $1 AND r.active ORDER BY r.description`, userID)
+}
+
+func (r *RecurringRepository) FindByID(ctx context.Context, userID, id int64) (*domain.RecurringEntry, error) {
+	const query = `SELECT ` + recurringColumns + recurringFrom + ` WHERE r.id = $1 AND r.user_id = $2`
+
+	var entry domain.RecurringEntry
+	err := scanRecurring(r.pool.QueryRow(ctx, query, id, userID), &entry)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrRecurringNotFound
+	}
+	if err != nil {
+		return nil, domain.ErrInternal.Wrap(err)
+	}
+
+	return &entry, nil
 }
 
 func (r *RecurringRepository) Delete(ctx context.Context, userID, id int64) error {

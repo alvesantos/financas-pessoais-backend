@@ -116,6 +116,25 @@ func (d Debt) FinalDueDate() time.Time {
 	return d.DueDateOf(d.Installments)
 }
 
+// InstallmentNumberOn devolve o número da parcela que vence na data, se
+// alguma vencer.
+func (d Debt) InstallmentNumberOn(date time.Time) (int, bool) {
+	date = Day(date)
+
+	for number := 1; number <= d.Installments; number++ {
+		dueDate := d.DueDateOf(number)
+
+		if dueDate.Equal(date) {
+			return number, true
+		}
+		if dueDate.After(date) {
+			break
+		}
+	}
+
+	return 0, false
+}
+
 // Schedule devolve todas as parcelas, em ordem, marcando as já vencidas.
 // Uma dívida quitada não tem mais parcelas a cumprir.
 func (d Debt) Schedule(today time.Time) []Installment {
@@ -207,6 +226,7 @@ func (d Debt) ProjectInto(period Period) []Transaction {
 		installmentsTotal := d.Installments
 
 		projected = append(projected, Transaction{
+			Projected:         true,
 			UserID:            d.UserID,
 			Description:       d.Description,
 			AmountCents:       d.InstallmentCents,

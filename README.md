@@ -212,11 +212,29 @@ Dois números respondem "como estou hoje":
   movimentação, sem recorte de mês ou ano. Os lançamentos gravados são
   somados no banco (`SumUntil`); os fixos são projetados do início de cada
   regra até hoje.
-- **Despesas fixas** é o custo de vida do mês: o que os fixos de saída somam
-  no período. Como a conta usa as ocorrências projetadas, um fixo semanal
-  pesa quatro ou cinco vezes sem nenhuma conversão de frequência à mão. As
-  dívidas ficam de fora deste número, porque têm fim: elas aparecem em
-  `dividas`, com o que falta pagar.
+- **Despesas fixas** é o custo de vida: **todos** os fixos de saída que a
+  pessoa tem, cada um convertido para o quanto pesa em um mês médio
+  (`valor × ocorrências no ano ÷ 12`). Não é "o que vence neste mês" de
+  propósito: um fixo que só começa mês que vem já é um compromisso assumido,
+  e um semestral precisa pesar todo mês, senão o número pularia conforme o
+  calendário. Fixo inativo ou já encerrado sai da conta. As dívidas ficam de
+  fora porque têm fim: elas aparecem em `dividas`, com o que falta pagar.
+
+## Ocorrências materializadas
+
+Uma projeção (parcela de fixo ou de dívida) não existe como linha, então não
+há o que marcar como pago. `POST /api/transactions/occurrence` resolve isso:
+ela **grava** aquela ocorrência como lançamento pago, copiando descrição,
+valor, tipo e categoria da origem, e a projeção daquela data para de
+aparecer, em vez de duplicar.
+
+A data precisa ser mesmo uma ocorrência da regra; marcar um dia qualquer
+inventaria um lançamento que o fixo nunca gerou. E um índice único por
+(origem, data) impede a mesma ocorrência virar linha duas vezes, resolvendo
+a corrida entre dois cliques sem um `SELECT` antes do `INSERT`.
+
+É também o caminho para editar ou apagar uma ocorrência isolada: depois de
+materializada, ela é um lançamento como qualquer outro.
 
 ## Decisões
 
@@ -252,9 +270,9 @@ make test-all   # unitários + e2e
 
 ## Próximos passos
 
-Editar e apagar uma ocorrência isolada de um fixo, com uma tabela de
-exceções. Hoje as projeções não existem como linha e por isso não podem ser
-mexidas uma a uma.
+Pular uma ocorrência (marcar que aquele mês não teve), que hoje só é possível
+apagando o fixo inteiro. A tabela de materializadas já é metade do caminho:
+faltaria registrar a ausência, além da presença.
 
 Cada funcionalidade segue o mesmo caminho: porta em `domain/ports.go`,
 repositório em `repository/postgres/`, caso de uso em `service/`, DTO,

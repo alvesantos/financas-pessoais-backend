@@ -75,6 +75,43 @@ func (r CreateTransactionRequest) ToDomain(userID int64) domain.NewTransaction {
 	}
 }
 
+// PayOccurrenceRequest é o corpo de POST /api/transactions/occurrence.
+type PayOccurrenceRequest struct {
+	Origin     string `json:"origin"`
+	OriginID   int64  `json:"origin_id"`
+	OccurredAt string `json:"occurred_at"`
+}
+
+func (r PayOccurrenceRequest) Validate() error {
+	fields := map[string]string{}
+
+	if !domain.OccurrenceOrigin(r.Origin).Valid() {
+		fields["origin"] = "origem desconhecida"
+	}
+	if r.OriginID <= 0 {
+		fields["origin_id"] = "identificador inválido"
+	}
+	if _, err := parseDate(r.OccurredAt); err != nil {
+		fields["occurred_at"] = "informe uma data válida"
+	}
+
+	if len(fields) > 0 {
+		return domain.ErrValidation.WithFields(fields)
+	}
+	return nil
+}
+
+func (r PayOccurrenceRequest) ToDomain(userID int64) domain.PayOccurrence {
+	occurredAt, _ := parseDate(r.OccurredAt)
+
+	return domain.PayOccurrence{
+		UserID:     userID,
+		Origin:     domain.OccurrenceOrigin(r.Origin),
+		OriginID:   r.OriginID,
+		OccurredAt: occurredAt,
+	}
+}
+
 // TransactionResponse é um lançamento como o cliente o vê. Projeções de
 // fixos vêm com recurring_id preenchido e sem id próprio.
 type TransactionResponse struct {
@@ -102,6 +139,7 @@ type TransactionResponse struct {
 	DebtID            *int64 `json:"debt_id,omitempty"`
 	InstallmentNumber *int   `json:"installment_number,omitempty"`
 	InstallmentsTotal *int   `json:"installments_total,omitempty"`
+	RecurringOrigin   *int64 `json:"recurring_origin_id,omitempty"`
 }
 
 func NewTransactionResponse(t domain.Transaction) TransactionResponse {
@@ -119,6 +157,7 @@ func NewTransactionResponse(t domain.Transaction) TransactionResponse {
 		CategoryName:      t.CategoryName,
 		CategoryColor:     t.CategoryColor,
 		DebtID:            t.DebtID,
+		RecurringOrigin:   t.RecurringID,
 		InstallmentNumber: t.InstallmentNumber,
 		InstallmentsTotal: t.InstallmentsTotal,
 		Paid:              t.Paid,

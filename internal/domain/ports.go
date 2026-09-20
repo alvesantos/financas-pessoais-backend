@@ -53,6 +53,7 @@ type TransactionRepository interface {
 type RecurringRepository interface {
 	Create(ctx context.Context, input NewRecurringEntry) (*RecurringEntry, error)
 	Update(ctx context.Context, input UpdateRecurringEntry) (*RecurringEntry, error)
+	FindByID(ctx context.Context, userID, id int64) (*RecurringEntry, error)
 	ListActive(ctx context.Context, userID int64) ([]RecurringEntry, error)
 	List(ctx context.Context, userID int64) ([]RecurringEntry, error)
 	Delete(ctx context.Context, userID, id int64) error
@@ -62,6 +63,8 @@ type RecurringRepository interface {
 type TransactionService interface {
 	Create(ctx context.Context, input NewTransaction) (*Transaction, error)
 	Update(ctx context.Context, input UpdateTransaction) (*Transaction, error)
+	// PayOccurrence transforma uma ocorrência projetada em lançamento pago.
+	PayOccurrence(ctx context.Context, input PayOccurrence) (*Transaction, error)
 	ListMonth(ctx context.Context, userID int64, year int, month time.Month) ([]Transaction, error)
 	Summary(ctx context.Context, userID int64, year int, month time.Month) (*MonthSummary, error)
 	Delete(ctx context.Context, userID, id int64) error
