@@ -94,6 +94,20 @@ func (r RecurringEntry) ProjectInto(period Period) []Transaction {
 	return projected
 }
 
+// occurrenceAt devolve a data da ocorrência de índice n, contando 0 para a
+// primeira. É o que permite numerar as parcelas de uma dívida.
+func occurrenceAt(start time.Time, frequency Frequency, index int) time.Time {
+	if step, ok := frequency.stepInDays(); ok {
+		return start.AddDate(0, 0, index*step)
+	}
+
+	if step, ok := frequency.stepInMonths(); ok {
+		return monthlyOccurrence(start, index*step)
+	}
+
+	return start
+}
+
 // occurrencesByDays salta de N em N dias a partir do início, sem percorrer
 // todo o intervalo desde a data de início.
 func occurrencesByDays(start, from, to time.Time, step int) []time.Time {

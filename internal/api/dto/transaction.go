@@ -76,22 +76,29 @@ type TransactionResponse struct {
 	CategoryID    *int64  `json:"category_id"`
 	CategoryName  *string `json:"category_name"`
 	CategoryColor *string `json:"category_color"`
+
+	DebtID            *int64 `json:"debt_id,omitempty"`
+	InstallmentNumber *int   `json:"installment_number,omitempty"`
+	InstallmentsTotal *int   `json:"installments_total,omitempty"`
 }
 
 func NewTransactionResponse(t domain.Transaction) TransactionResponse {
 	response := TransactionResponse{
-		ID:            t.ID,
-		Description:   t.Description,
-		AmountCents:   t.AmountCents,
-		SignedCents:   t.SignedAmount(),
-		Kind:          string(t.Kind),
-		KindLabel:     t.Kind.Label(),
-		OccurredAt:    t.OccurredAt.Format(dateLayout),
-		Projected:     t.IsProjected(),
-		RecurringID:   t.RecurringID,
-		CategoryID:    t.CategoryID,
-		CategoryName:  t.CategoryName,
-		CategoryColor: t.CategoryColor,
+		ID:                t.ID,
+		Description:       t.Description,
+		AmountCents:       t.AmountCents,
+		SignedCents:       t.SignedAmount(),
+		Kind:              string(t.Kind),
+		KindLabel:         t.Kind.Label(),
+		OccurredAt:        t.OccurredAt.Format(dateLayout),
+		Projected:         t.IsProjected(),
+		RecurringID:       t.RecurringID,
+		CategoryID:        t.CategoryID,
+		CategoryName:      t.CategoryName,
+		CategoryColor:     t.CategoryColor,
+		DebtID:            t.DebtID,
+		InstallmentNumber: t.InstallmentNumber,
+		InstallmentsTotal: t.InstallmentsTotal,
 	}
 
 	if t.Frequency != nil {

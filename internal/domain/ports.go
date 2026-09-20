@@ -76,6 +76,20 @@ type DashboardService interface {
 	Overview(ctx context.Context, userID int64, year int, month time.Month) (*Dashboard, error)
 }
 
+// DebtRepository é a porta de persistência de dívidas.
+type DebtRepository interface {
+	Create(ctx context.Context, input NewDebt) (*Debt, error)
+	List(ctx context.Context, userID int64) ([]Debt, error)
+	Delete(ctx context.Context, userID, id int64) error
+}
+
+// DebtService é a porta de entrada dos casos de uso de dívidas.
+type DebtService interface {
+	Create(ctx context.Context, input NewDebt) (*Debt, error)
+	List(ctx context.Context, userID int64) ([]Debt, error)
+	Delete(ctx context.Context, userID, id int64) error
+}
+
 // CategoryRepository é a porta de persistência de categorias.
 type CategoryRepository interface {
 	Create(ctx context.Context, input NewCategory) (*Category, error)

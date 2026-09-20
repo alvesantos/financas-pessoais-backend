@@ -10,10 +10,20 @@ import (
 )
 
 func novoPainel(hoje time.Time) (*service.DashboardService, *fakeTransactionRepo, *fakeRecurringRepo) {
+	painel, transacoes, fixos, _ := novoPainelComDividas(hoje)
+	return painel, transacoes, fixos
+}
+
+func novoPainelComDividas(
+	hoje time.Time,
+) (*service.DashboardService, *fakeTransactionRepo, *fakeRecurringRepo, *fakeDebtRepo) {
 	transacoes := &fakeTransactionRepo{}
 	fixos := &fakeRecurringRepo{}
+	dividas := &fakeDebtRepo{}
 
-	return service.NewDashboardService(transacoes, fixos, relogioFixo{hoje: hoje}), transacoes, fixos
+	painel := service.NewDashboardService(transacoes, fixos, dividas, relogioFixo{hoje: hoje})
+
+	return painel, transacoes, fixos, dividas
 }
 
 func gravar(t *testing.T, repo *fakeTransactionRepo, descricao string, centavos int64, tipo domain.Kind, data time.Time) {
@@ -305,5 +315,68 @@ func TestReceitaNaoEntraNosGastosPorCategoria(t *testing.T) {
 
 	if len(overview.GastosPorCategoria) != 0 {
 		t.Errorf("receita não é gasto, veio %v", overview.GastosPorCategoria)
+	}
+}
+
+func TestPainelAgregaAsDividas(t *testing.T) {
+	// Em julho de 2027 já venceram 10 das 21 parcelas.
+	painel, _, _, dividas := novoPainelComDividas(dia(2027, time.July, 7))
+
+	_, _ = dividas.Create(context.Background(), domain.NewDebt{
+		UserID: usuario, Description: "Empréstimo", InstallmentCents: 87766,
+		Installments: 21, Kind: domain.KindDespesa, Frequency: domain.FrequencyMensal,
+		FirstDueDate: dia(2026, time.October, 7),
+	})
+
+	overview, err := painel.Overview(context.Background(), usuario, 2027, time.July)
+	if err != nil {
+		t.Fatalf("overview: %v", err)
+	}
+
+	if overview.Dividas.RemainingCents != 87766*11 {
+		t.Errorf("resta %d, esperava %d", overview.Dividas.RemainingCents, 87766*11)
+	}
+	if overview.Dividas.OpenCount != 1 {
+		t.Errorf("dívidas em aberto = %d, esperava 1", overview.Dividas.OpenCount)
+	}
+	if overview.Dividas.Percent != 47 {
+		t.Errorf("percentual = %d, esperava 47", overview.Dividas.Percent)
+	}
+}
+
+func TestDividaQuitadaSaiDaContagemEmAberto(t *testing.T) {
+	painel, _, _, dividas := novoPainelComDividas(dia(2030, time.January, 1))
+
+	_, _ = dividas.Create(context.Background(), domain.NewDebt{
+		UserID: usuario, Description: "Empréstimo", InstallmentCents: 87766,
+		Installments: 21, Kind: domain.KindDespesa, Frequency: domain.FrequencyMensal,
+		FirstDueDate: dia(2026, time.October, 7),
+	})
+
+	overview, _ := painel.Overview(context.Background(), usuario, 2030, time.January)
+
+	if overview.Dividas.OpenCount != 0 || overview.Dividas.SettledCount != 1 {
+		t.Errorf("em aberto = %d, quitadas = %d; esperava 0 e 1",
+			overview.Dividas.OpenCount, overview.Dividas.SettledCount)
+	}
+	if overview.Dividas.RemainingCents != 0 {
+		t.Errorf("resta %d, esperava 0", overview.Dividas.RemainingCents)
+	}
+}
+
+func TestParcelaVencidaPesaNoSaldoAtual(t *testing.T) {
+	// Duas parcelas vencidas: outubro e novembro de 2026.
+	painel, _, _, dividas := novoPainelComDividas(dia(2026, time.November, 30))
+
+	_, _ = dividas.Create(context.Background(), domain.NewDebt{
+		UserID: usuario, Description: "Empréstimo", InstallmentCents: 87766,
+		Installments: 21, Kind: domain.KindDespesa, Frequency: domain.FrequencyMensal,
+		FirstDueDate: dia(2026, time.October, 7),
+	})
+
+	overview, _ := painel.Overview(context.Background(), usuario, 2026, time.November)
+
+	if overview.SaldoAtual != -87766*2 {
+		t.Errorf("saldo atual = %d, esperava %d", overview.SaldoAtual, -87766*2)
 	}
 }

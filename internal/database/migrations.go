@@ -21,6 +21,7 @@ var migrations = []migration{
 	{1, "schema inicial", schema001},
 	{2, "lancamentos e fixos", schema002},
 	{3, "categorias com os quatro tipos", schema003},
+	{4, "dividas parceladas", schema004},
 }
 
 const schema001 = `
@@ -99,6 +100,27 @@ ALTER TABLE categories
 ALTER TABLE categories ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
 
 CREATE INDEX IF NOT EXISTS idx_categories_user ON categories(user_id);
+`
+
+// schema004 cria as dívidas parceladas. Como os fixos, elas não geram linhas
+// em transactions: as parcelas são projetadas na leitura. A diferença é que
+// a dívida tem um fim, e por isso um progresso.
+const schema004 = `
+CREATE TABLE debts (
+	id                 BIGSERIAL PRIMARY KEY,
+	user_id            BIGINT      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	category_id        BIGINT      REFERENCES categories(id) ON DELETE SET NULL,
+	description        TEXT        NOT NULL,
+	-- valor de cada parcela, em centavos
+	installment_amount BIGINT      NOT NULL CHECK (installment_amount > 0),
+	installments       INTEGER     NOT NULL CHECK (installments > 0 AND installments <= 600),
+	kind               TEXT        NOT NULL CHECK (kind IN ('despesa','cartao_credito')),
+	frequency          TEXT        NOT NULL CHECK (frequency IN ('diario','semanal','quinzenal','mensal','semestral','anual')),
+	first_due_date     DATE        NOT NULL,
+	created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_debts_user ON debts(user_id);
 `
 
 // Migrate aplica, em ordem, as migrações que ainda faltam.

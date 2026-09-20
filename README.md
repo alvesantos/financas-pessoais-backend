@@ -138,6 +138,9 @@ sempre responde uma mensagem genérica.
 | GET | `/api/recurring` | Lista os lançamentos fixos |
 | POST | `/api/recurring` | Cria um lançamento fixo |
 | DELETE | `/api/recurring/{id}` | Apaga um fixo, e com ele as projeções |
+| GET | `/api/debts` | Lista as dívidas, com o progresso de cada uma |
+| POST | `/api/debts` | Registra uma dívida parcelada |
+| DELETE | `/api/debts/{id}` | Apaga uma dívida, e com ela as parcelas |
 | GET | `/api/categories` | Lista as categorias |
 | POST | `/api/categories` | Cria uma categoria |
 | DELETE | `/api/categories/{id}` | Apaga uma categoria |
@@ -185,6 +188,22 @@ O ciclo conta desde a data de início, não do começo do mês: um semanal que
 começa em 01/01 cai nos dias 3, 10, 17 e 24 de setembro. Um mensal do dia 31
 cai no último dia dos meses mais curtos, em vez de vazar para o mês seguinte.
 
+## Dívidas parceladas
+
+Um empréstimo, um acordo, uma compra em muitas vezes. É como um fixo, mas
+com um número de parcelas e, por isso, com fim e com progresso.
+
+Como os fixos, **dívidas não geram linhas em `transactions`**: as parcelas
+são projetadas na leitura, numeradas (`3/21`) e com a data de cada
+vencimento. Apagar a dívida some com todas as parcelas de uma vez.
+
+O progresso é calculado no domínio (`Debt.Progress`) e vai pronto na
+resposta: é o número que a tela mostra, e recalculá-lo no cliente duplicaria
+a regra. **Parcela vencida é tratada como paga**, pela mesma convenção do
+saldo atual: o sistema não registra a baixa em separado.
+
+Uma dívida é sempre saída, então só aceita `despesa` e `cartao_credito`.
+
 ## Painel
 
 Dois números respondem "como estou hoje":
@@ -195,7 +214,9 @@ Dois números respondem "como estou hoje":
   regra até hoje.
 - **Despesas fixas** é o custo de vida do mês: o que os fixos de saída somam
   no período. Como a conta usa as ocorrências projetadas, um fixo semanal
-  pesa quatro ou cinco vezes sem nenhuma conversão de frequência à mão.
+  pesa quatro ou cinco vezes sem nenhuma conversão de frequência à mão. As
+  dívidas ficam de fora deste número, porque têm fim: elas aparecem em
+  `dividas`, com o que falta pagar.
 
 ## Decisões
 

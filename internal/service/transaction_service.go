@@ -14,6 +14,7 @@ import (
 type TransactionService struct {
 	transactions domain.TransactionRepository
 	recurring    domain.RecurringRepository
+	debts        domain.DebtRepository
 	categories   domain.CategoryRepository
 	clock        domain.Clock
 }
@@ -23,12 +24,14 @@ var _ domain.TransactionService = (*TransactionService)(nil)
 func NewTransactionService(
 	transactions domain.TransactionRepository,
 	recurring domain.RecurringRepository,
+	debts domain.DebtRepository,
 	categories domain.CategoryRepository,
 	clock domain.Clock,
 ) *TransactionService {
 	return &TransactionService{
 		transactions: transactions,
 		recurring:    recurring,
+		debts:        debts,
 		categories:   categories,
 		clock:        clock,
 	}
@@ -68,7 +71,15 @@ func (s *TransactionService) ListMonth(
 		return nil, err
 	}
 
-	return sortByDate(append(stored, projected...)), nil
+	installments, err := s.projectDebts(ctx, userID, period)
+	if err != nil {
+		return nil, err
+	}
+
+	entries := append(stored, projected...)
+	entries = append(entries, installments...)
+
+	return sortByDate(entries), nil
 }
 
 // Summary calcula os saldos do mês.
@@ -100,6 +111,23 @@ func (s *TransactionService) projectRecurring(
 	var projected []domain.Transaction
 	for _, entry := range entries {
 		projected = append(projected, entry.ProjectInto(period)...)
+	}
+
+	return projected, nil
+}
+
+// projectDebts transforma as parcelas que vencem no período em lançamentos.
+func (s *TransactionService) projectDebts(
+	ctx context.Context, userID int64, period domain.Period,
+) ([]domain.Transaction, error) {
+	debts, err := s.debts.List(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	var projected []domain.Transaction
+	for _, debt := range debts {
+		projected = append(projected, debt.ProjectInto(period)...)
 	}
 
 	return projected, nil

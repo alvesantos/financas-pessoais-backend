@@ -14,6 +14,7 @@ import (
 type DashboardService struct {
 	transactions domain.TransactionRepository
 	recurring    domain.RecurringRepository
+	debts        domain.DebtRepository
 	clock        domain.Clock
 }
 
@@ -22,9 +23,15 @@ var _ domain.DashboardService = (*DashboardService)(nil)
 func NewDashboardService(
 	transactions domain.TransactionRepository,
 	recurring domain.RecurringRepository,
+	debts domain.DebtRepository,
 	clock domain.Clock,
 ) *DashboardService {
-	return &DashboardService{transactions: transactions, recurring: recurring, clock: clock}
+	return &DashboardService{
+		transactions: transactions,
+		recurring:    recurring,
+		debts:        debts,
+		clock:        clock,
+	}
 }
 
 func (s *DashboardService) Overview(
@@ -37,6 +44,11 @@ func (s *DashboardService) Overview(
 	}
 
 	recurringEntries, err := s.recurring.ListActive(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	debts, err := s.debts.List(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -57,6 +69,9 @@ func (s *DashboardService) Overview(
 		entries := byMonth[m]
 		for _, entry := range recurringEntries {
 			entries = append(entries, entry.ProjectInto(period)...)
+		}
+		for _, debt := range debts {
+			entries = append(entries, debt.ProjectInto(period)...)
 		}
 
 		summary := summarize(entries, year, m, today)
@@ -83,24 +98,60 @@ func (s *DashboardService) Overview(
 	dashboard.MaiorGasto = biggestExpense(entriesDoMes)
 	dashboard.DespesasFixas = fixedExpenses(recurringEntries, domain.MonthPeriod(year, month))
 
-	saldoAtual, err := s.accumulatedBalance(ctx, userID, recurringEntries, today)
+	saldoAtual, err := s.accumulatedBalance(ctx, userID, recurringEntries, debts, today)
 	if err != nil {
 		return nil, err
 	}
 	dashboard.SaldoAtual = saldoAtual
+	dashboard.Dividas = summarizeDebts(debts, today)
 
 	return dashboard, nil
+}
+
+// summarizeDebts agrega o que ainda falta pagar em todas as dívidas.
+func summarizeDebts(debts []domain.Debt, today time.Time) domain.DebtsSummary {
+	summary := domain.DebtsSummary{}
+
+	for _, debt := range debts {
+		progress := debt.Progress(today)
+
+		summary.TotalCents += progress.TotalCents
+		summary.PaidCents += progress.PaidCents
+		summary.RemainingCents += progress.RemainingCents
+
+		if progress.Settled {
+			summary.SettledCount++
+			continue
+		}
+
+		summary.OpenCount++
+	}
+
+	if summary.TotalCents > 0 {
+		summary.Percent = int(summary.PaidCents * 100 / summary.TotalCents)
+	}
+
+	return summary
 }
 
 // accumulatedBalance é o saldo de verdade: tudo que já entrou e saiu desde a
 // primeira movimentação, sem recorte de período. Os lançamentos gravados são
 // somados no banco; os fixos são projetados desde o início de cada regra.
 func (s *DashboardService) accumulatedBalance(
-	ctx context.Context, userID int64, recurringEntries []domain.RecurringEntry, today time.Time,
+	ctx context.Context,
+	userID int64,
+	recurringEntries []domain.RecurringEntry,
+	debts []domain.Debt,
+	today time.Time,
 ) (int64, error) {
 	total, err := s.transactions.SumUntil(ctx, userID, today)
 	if err != nil {
 		return 0, err
+	}
+
+	// Parcela vencida já saiu do bolso, como qualquer outro lançamento.
+	for _, debt := range debts {
+		total -= debt.Progress(today).PaidCents
 	}
 
 	for _, entry := range recurringEntries {

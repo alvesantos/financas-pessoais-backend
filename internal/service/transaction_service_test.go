@@ -123,11 +123,21 @@ func dia(ano int, mes time.Month, d int) time.Time {
 }
 
 func novoServico(hoje time.Time) (*service.TransactionService, *fakeTransactionRepo, *fakeRecurringRepo) {
+	svc, transacoes, fixos, _ := novoServicoComDividas(hoje)
+	return svc, transacoes, fixos
+}
+
+func novoServicoComDividas(
+	hoje time.Time,
+) (*service.TransactionService, *fakeTransactionRepo, *fakeRecurringRepo, *fakeDebtRepo) {
 	transacoes := &fakeTransactionRepo{}
 	fixos := &fakeRecurringRepo{}
+	dividas := &fakeDebtRepo{}
 	categorias := &fakeCategoryRepo{}
 
-	return service.NewTransactionService(transacoes, fixos, categorias, relogioFixo{hoje: hoje}), transacoes, fixos
+	svc := service.NewTransactionService(transacoes, fixos, dividas, categorias, relogioFixo{hoje: hoje})
+
+	return svc, transacoes, fixos, dividas
 }
 
 func criar(t *testing.T, svc *service.TransactionService, descricao string, centavos int64, tipo domain.Kind, data time.Time) *domain.Transaction {

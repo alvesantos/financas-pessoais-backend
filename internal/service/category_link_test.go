@@ -26,7 +26,7 @@ func categoriaDe(t *testing.T, repo *fakeCategoryRepo, nome string, tipo domain.
 func servicoComCategorias(hoje time.Time) (*service.TransactionService, *fakeCategoryRepo) {
 	categorias := &fakeCategoryRepo{}
 	svc := service.NewTransactionService(
-		&fakeTransactionRepo{}, &fakeRecurringRepo{}, categorias, relogioFixo{hoje: hoje},
+		&fakeTransactionRepo{}, &fakeRecurringRepo{}, &fakeDebtRepo{}, categorias, relogioFixo{hoje: hoje},
 	)
 
 	return svc, categorias
@@ -137,7 +137,7 @@ func TestProjecaoDoFixoCarregaACategoria(t *testing.T) {
 	fixos := &fakeRecurringRepo{}
 	categorias := &fakeCategoryRepo{}
 	svc := service.NewTransactionService(
-		&fakeTransactionRepo{}, fixos, categorias, relogioFixo{hoje: dia(2026, time.September, 30)},
+		&fakeTransactionRepo{}, fixos, &fakeDebtRepo{}, categorias, relogioFixo{hoje: dia(2026, time.September, 30)},
 	)
 
 	nome, cor := "Academia", "#aabbcc"

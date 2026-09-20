@@ -23,11 +23,16 @@ type Transaction struct {
 	// não existem como linha no banco e não podem ser apagadas isoladamente.
 	RecurringID *int64
 	Frequency   *Frequency
+
+	// Preenchidos quando o lançamento é a parcela de uma dívida.
+	DebtID            *int64
+	InstallmentNumber *int
+	InstallmentsTotal *int
 }
 
-// IsProjected diz se o lançamento veio de um fixo em vez do banco.
+// IsProjected diz se o lançamento foi calculado em vez de lido do banco.
 func (t Transaction) IsProjected() bool {
-	return t.RecurringID != nil
+	return t.RecurringID != nil || t.DebtID != nil
 }
 
 // SignedAmount é o efeito do lançamento sobre o saldo.

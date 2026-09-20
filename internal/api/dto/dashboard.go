@@ -43,6 +43,7 @@ type DashboardResponse struct {
 	GastosPorTipo      []KindTotalResponse     `json:"gastos_por_tipo"`
 	GastosPorCategoria []CategoryTotalResponse `json:"gastos_por_categoria"`
 	MaiorGasto         *TransactionResponse    `json:"maior_gasto"`
+	Dividas            DebtsSummaryResponse    `json:"dividas"`
 }
 
 func NewDashboardResponse(d domain.Dashboard) DashboardResponse {
@@ -56,6 +57,7 @@ func NewDashboardResponse(d domain.Dashboard) DashboardResponse {
 			Saldo:    d.Year.Saldo,
 		},
 		Month:              NewMonthSummaryResponse(d.Month),
+		Dividas:            NewDebtsSummaryResponse(d.Dividas),
 		PorMes:             make([]MonthTotalsResponse, 0, len(d.PorMes)),
 		GastosPorTipo:      make([]KindTotalResponse, 0, len(d.GastosPorTipo)),
 		GastosPorCategoria: make([]CategoryTotalResponse, 0, len(d.GastosPorCategoria)),

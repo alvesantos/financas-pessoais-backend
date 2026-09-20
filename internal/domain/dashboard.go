@@ -34,6 +34,16 @@ type YearTotals struct {
 	Saldo    int64
 }
 
+// DebtsSummary agrega todas as dívidas: quanto já venceu e quanto falta.
+type DebtsSummary struct {
+	TotalCents     int64
+	PaidCents      int64
+	RemainingCents int64
+	OpenCount      int
+	SettledCount   int
+	Percent        int
+}
+
 // Dashboard reúne as métricas do painel: o ano, o mês escolhido, a série
 // mensal do gráfico e a composição dos gastos do mês.
 type Dashboard struct {
@@ -50,4 +60,5 @@ type Dashboard struct {
 	GastosPorTipo      []KindTotal
 	GastosPorCategoria []CategoryTotal
 	MaiorGasto         *Transaction
+	Dividas            DebtsSummary
 }
