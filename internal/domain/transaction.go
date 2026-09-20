@@ -13,6 +13,12 @@ type Transaction struct {
 	OccurredAt  time.Time
 	CreatedAt   time.Time
 
+	// Categoria, quando houver. Nome e cor vêm junto para a listagem não
+	// precisar de uma consulta por linha.
+	CategoryID    *int64
+	CategoryName  *string
+	CategoryColor *string
+
 	// Preenchidos quando o lançamento foi projetado de um fixo. Projeções
 	// não existem como linha no banco e não podem ser apagadas isoladamente.
 	RecurringID *int64
@@ -36,6 +42,7 @@ type NewTransaction struct {
 	AmountCents int64
 	Kind        Kind
 	OccurredAt  time.Time
+	CategoryID  *int64
 }
 
 // MonthSummary são os totais de um mês.

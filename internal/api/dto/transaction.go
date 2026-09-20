@@ -20,6 +20,7 @@ type CreateTransactionRequest struct {
 	AmountCents int64  `json:"amount_cents"`
 	Kind        string `json:"kind"`
 	OccurredAt  string `json:"occurred_at"`
+	CategoryID  *int64 `json:"category_id"`
 }
 
 func (r CreateTransactionRequest) Validate() error {
@@ -53,6 +54,7 @@ func (r CreateTransactionRequest) ToDomain(userID int64) domain.NewTransaction {
 		AmountCents: r.AmountCents,
 		Kind:        domain.Kind(r.Kind),
 		OccurredAt:  occurredAt,
+		CategoryID:  r.CategoryID,
 	}
 }
 
@@ -70,19 +72,26 @@ type TransactionResponse struct {
 	RecurringID    *int64  `json:"recurring_id,omitempty"`
 	Frequency      *string `json:"frequency,omitempty"`
 	FrequencyLabel *string `json:"frequency_label,omitempty"`
+
+	CategoryID    *int64  `json:"category_id"`
+	CategoryName  *string `json:"category_name"`
+	CategoryColor *string `json:"category_color"`
 }
 
 func NewTransactionResponse(t domain.Transaction) TransactionResponse {
 	response := TransactionResponse{
-		ID:          t.ID,
-		Description: t.Description,
-		AmountCents: t.AmountCents,
-		SignedCents: t.SignedAmount(),
-		Kind:        string(t.Kind),
-		KindLabel:   t.Kind.Label(),
-		OccurredAt:  t.OccurredAt.Format(dateLayout),
-		Projected:   t.IsProjected(),
-		RecurringID: t.RecurringID,
+		ID:            t.ID,
+		Description:   t.Description,
+		AmountCents:   t.AmountCents,
+		SignedCents:   t.SignedAmount(),
+		Kind:          string(t.Kind),
+		KindLabel:     t.Kind.Label(),
+		OccurredAt:    t.OccurredAt.Format(dateLayout),
+		Projected:     t.IsProjected(),
+		RecurringID:   t.RecurringID,
+		CategoryID:    t.CategoryID,
+		CategoryName:  t.CategoryName,
+		CategoryColor: t.CategoryColor,
 	}
 
 	if t.Frequency != nil {

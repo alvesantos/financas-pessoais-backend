@@ -17,6 +17,14 @@ type KindTotalResponse struct {
 	Total int64  `json:"total_cents"`
 }
 
+// CategoryTotalResponse é uma barra do gráfico de composição.
+type CategoryTotalResponse struct {
+	CategoryID *int64 `json:"category_id"`
+	Label      string `json:"label"`
+	Color      string `json:"color"`
+	Total      int64  `json:"total_cents"`
+}
+
 // YearTotalsResponse são os números do ano inteiro.
 type YearTotalsResponse struct {
 	Year     int   `json:"year"`
@@ -27,13 +35,14 @@ type YearTotalsResponse struct {
 
 // DashboardResponse é o painel completo.
 type DashboardResponse struct {
-	SaldoAtual    int64                 `json:"saldo_atual_cents"`
-	DespesasFixas int64                 `json:"despesas_fixas_cents"`
-	Year          YearTotalsResponse    `json:"year"`
-	Month         MonthSummaryResponse  `json:"month"`
-	PorMes        []MonthTotalsResponse `json:"por_mes"`
-	GastosPorTipo []KindTotalResponse   `json:"gastos_por_tipo"`
-	MaiorGasto    *TransactionResponse  `json:"maior_gasto"`
+	SaldoAtual         int64                   `json:"saldo_atual_cents"`
+	DespesasFixas      int64                   `json:"despesas_fixas_cents"`
+	Year               YearTotalsResponse      `json:"year"`
+	Month              MonthSummaryResponse    `json:"month"`
+	PorMes             []MonthTotalsResponse   `json:"por_mes"`
+	GastosPorTipo      []KindTotalResponse     `json:"gastos_por_tipo"`
+	GastosPorCategoria []CategoryTotalResponse `json:"gastos_por_categoria"`
+	MaiorGasto         *TransactionResponse    `json:"maior_gasto"`
 }
 
 func NewDashboardResponse(d domain.Dashboard) DashboardResponse {
@@ -46,9 +55,10 @@ func NewDashboardResponse(d domain.Dashboard) DashboardResponse {
 			Despesas: d.Year.Despesas,
 			Saldo:    d.Year.Saldo,
 		},
-		Month:         NewMonthSummaryResponse(d.Month),
-		PorMes:        make([]MonthTotalsResponse, 0, len(d.PorMes)),
-		GastosPorTipo: make([]KindTotalResponse, 0, len(d.GastosPorTipo)),
+		Month:              NewMonthSummaryResponse(d.Month),
+		PorMes:             make([]MonthTotalsResponse, 0, len(d.PorMes)),
+		GastosPorTipo:      make([]KindTotalResponse, 0, len(d.GastosPorTipo)),
+		GastosPorCategoria: make([]CategoryTotalResponse, 0, len(d.GastosPorCategoria)),
 	}
 
 	for _, month := range d.PorMes {
@@ -65,6 +75,15 @@ func NewDashboardResponse(d domain.Dashboard) DashboardResponse {
 			Kind:  string(kind.Kind),
 			Label: kind.Label,
 			Total: kind.Total,
+		})
+	}
+
+	for _, categoria := range d.GastosPorCategoria {
+		response.GastosPorCategoria = append(response.GastosPorCategoria, CategoryTotalResponse{
+			CategoryID: categoria.CategoryID,
+			Label:      categoria.Label,
+			Color:      categoria.Color,
+			Total:      categoria.Total,
 		})
 	}
 

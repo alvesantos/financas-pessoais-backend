@@ -26,6 +26,7 @@ func (f *fakeTransactionRepo) Create(_ context.Context, input domain.NewTransact
 		AmountCents: input.AmountCents,
 		Kind:        input.Kind,
 		OccurredAt:  input.OccurredAt,
+		CategoryID:  input.CategoryID,
 	}
 	f.items = append(f.items, t)
 
@@ -77,6 +78,7 @@ func (f *fakeRecurringRepo) Create(_ context.Context, input domain.NewRecurringE
 		StartDate:   input.StartDate,
 		EndDate:     input.EndDate,
 		Active:      true,
+		CategoryID:  input.CategoryID,
 	}
 	f.items = append(f.items, entry)
 
@@ -123,8 +125,9 @@ func dia(ano int, mes time.Month, d int) time.Time {
 func novoServico(hoje time.Time) (*service.TransactionService, *fakeTransactionRepo, *fakeRecurringRepo) {
 	transacoes := &fakeTransactionRepo{}
 	fixos := &fakeRecurringRepo{}
+	categorias := &fakeCategoryRepo{}
 
-	return service.NewTransactionService(transacoes, fixos, relogioFixo{hoje: hoje}), transacoes, fixos
+	return service.NewTransactionService(transacoes, fixos, categorias, relogioFixo{hoje: hoje}), transacoes, fixos
 }
 
 func criar(t *testing.T, svc *service.TransactionService, descricao string, centavos int64, tipo domain.Kind, data time.Time) *domain.Transaction {

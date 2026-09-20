@@ -79,6 +79,7 @@ func (s *DashboardService) Overview(
 
 	dashboard.Year.Saldo = dashboard.Year.Receitas - dashboard.Year.Despesas
 	dashboard.GastosPorTipo = expensesByKind(dashboard.Month.TotalPorTipo)
+	dashboard.GastosPorCategoria = expensesByCategory(entriesDoMes)
 	dashboard.MaiorGasto = biggestExpense(entriesDoMes)
 	dashboard.DespesasFixas = fixedExpenses(recurringEntries, domain.MonthPeriod(year, month))
 
@@ -158,6 +159,61 @@ func expensesByKind(totals map[domain.Kind]int64) []domain.KindTotal {
 		if total := totals[kind]; total > 0 {
 			result = append(result, domain.KindTotal{Kind: kind, Label: kind.Label(), Total: total})
 		}
+	}
+
+	sort.SliceStable(result, func(i, j int) bool { return result[i].Total > result[j].Total })
+
+	return result
+}
+
+// semCategoria é o balde de quem ainda não escolheu uma.
+const semCategoria = "Sem categoria"
+
+// corSemCategoria é neutra de propósito: o balde não é uma categoria de
+// verdade e não deve competir com as que a pessoa criou.
+const corSemCategoria = "#94a3b8"
+
+// expensesByCategory agrupa os gastos do mês por categoria, do maior para o
+// menor. É o que o gráfico de composição mostra.
+func expensesByCategory(entries []domain.Transaction) []domain.CategoryTotal {
+	type bucket struct {
+		total domain.CategoryTotal
+	}
+
+	// A chave separa cada categoria do balde dos sem categoria.
+	buckets := map[int64]*bucket{}
+	var ordem []int64
+
+	for _, entry := range entries {
+		if entry.Kind.IsIncome() {
+			continue
+		}
+
+		var chave int64
+		rotulo, cor := semCategoria, corSemCategoria
+
+		if entry.CategoryID != nil {
+			chave = *entry.CategoryID
+			if entry.CategoryName != nil {
+				rotulo = *entry.CategoryName
+			}
+			if entry.CategoryColor != nil {
+				cor = *entry.CategoryColor
+			}
+		}
+
+		if _, existe := buckets[chave]; !existe {
+			id := entry.CategoryID
+			buckets[chave] = &bucket{total: domain.CategoryTotal{CategoryID: id, Label: rotulo, Color: cor}}
+			ordem = append(ordem, chave)
+		}
+
+		buckets[chave].total.Total += entry.AmountCents
+	}
+
+	result := make([]domain.CategoryTotal, 0, len(ordem))
+	for _, chave := range ordem {
+		result = append(result, buckets[chave].total)
 	}
 
 	sort.SliceStable(result, func(i, j int) bool { return result[i].Total > result[j].Total })

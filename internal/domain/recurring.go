@@ -15,6 +15,10 @@ type RecurringEntry struct {
 	EndDate     *time.Time
 	Active      bool
 	CreatedAt   time.Time
+
+	CategoryID    *int64
+	CategoryName  *string
+	CategoryColor *string
 }
 
 // NewRecurringEntry são os dados para criar um fixo.
@@ -26,6 +30,7 @@ type NewRecurringEntry struct {
 	Frequency   Frequency
 	StartDate   time.Time
 	EndDate     *time.Time
+	CategoryID  *int64
 }
 
 // OccurrencesIn devolve, em ordem, as datas em que o fixo cai dentro do
@@ -73,13 +78,16 @@ func (r RecurringEntry) ProjectInto(period Period) []Transaction {
 		frequency := r.Frequency
 
 		projected = append(projected, Transaction{
-			UserID:      r.UserID,
-			Description: r.Description,
-			AmountCents: r.AmountCents,
-			Kind:        r.Kind,
-			OccurredAt:  date,
-			RecurringID: &recurringID,
-			Frequency:   &frequency,
+			UserID:        r.UserID,
+			Description:   r.Description,
+			AmountCents:   r.AmountCents,
+			Kind:          r.Kind,
+			OccurredAt:    date,
+			RecurringID:   &recurringID,
+			Frequency:     &frequency,
+			CategoryID:    r.CategoryID,
+			CategoryName:  r.CategoryName,
+			CategoryColor: r.CategoryColor,
 		})
 	}
 

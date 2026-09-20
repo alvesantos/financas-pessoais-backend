@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -75,6 +76,26 @@ func (r *CategoryRepository) List(ctx context.Context, userID int64) ([]domain.C
 	}
 
 	return categories, nil
+}
+
+// FindByID busca no escopo do usuário: categoria de outra pessoa não existe.
+func (r *CategoryRepository) FindByID(ctx context.Context, userID, id int64) (*domain.Category, error) {
+	const query = `SELECT ` + categoryColumns + `
+		FROM categories WHERE id = $1 AND user_id = $2`
+
+	var category domain.Category
+	err := r.pool.QueryRow(ctx, query, id, userID).Scan(
+		&category.ID, &category.UserID, &category.Name,
+		&category.Kind, &category.Color, &category.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrCategoryNotFound
+	}
+	if err != nil {
+		return nil, domain.ErrInternal.Wrap(err)
+	}
+
+	return &category, nil
 }
 
 func (r *CategoryRepository) Delete(ctx context.Context, userID, id int64) error {

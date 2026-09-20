@@ -9,12 +9,16 @@ import (
 // RecurringService reúne os casos de uso de lançamentos fixos.
 type RecurringService struct {
 	repository domain.RecurringRepository
+	categories domain.CategoryRepository
 }
 
 var _ domain.RecurringService = (*RecurringService)(nil)
 
-func NewRecurringService(repository domain.RecurringRepository) *RecurringService {
-	return &RecurringService{repository: repository}
+func NewRecurringService(
+	repository domain.RecurringRepository,
+	categories domain.CategoryRepository,
+) *RecurringService {
+	return &RecurringService{repository: repository, categories: categories}
 }
 
 // Create grava um fixo. Vale a mesma regra de descrição dos lançamentos.
@@ -33,6 +37,10 @@ func (s *RecurringService) Create(ctx context.Context, input domain.NewRecurring
 		return nil, domain.ErrValidation.WithFields(map[string]string{
 			"end_date": "o fim não pode ser antes do início",
 		})
+	}
+
+	if err := ensureCategory(ctx, s.categories, input.UserID, input.CategoryID, input.Kind); err != nil {
+		return nil, err
 	}
 
 	input.Description = defaultDescription(input.Description, input.Kind)

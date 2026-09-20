@@ -79,8 +79,8 @@ func buildHandler(pool *pgxpool.Pool) http.Handler {
 
 	return router.New(router.Deps{
 		Auth:           service.NewAuthService(userRepository, hasher, tokens),
-		Transactions:   service.NewTransactionService(transactionRepository, recurringRepository, clock),
-		Recurring:      service.NewRecurringService(recurringRepository),
+		Transactions:   service.NewTransactionService(transactionRepository, recurringRepository, categoryRepository, clock),
+		Recurring:      service.NewRecurringService(recurringRepository, categoryRepository),
 		Categories:     service.NewCategoryService(categoryRepository),
 		Dashboard:      service.NewDashboardService(transactionRepository, recurringRepository, clock),
 		Tokens:         tokens,

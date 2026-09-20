@@ -16,6 +16,7 @@ type CreateRecurringRequest struct {
 	Frequency   string  `json:"frequency"`
 	StartDate   string  `json:"start_date"`
 	EndDate     *string `json:"end_date"`
+	CategoryID  *int64  `json:"category_id"`
 }
 
 func (r CreateRecurringRequest) Validate() error {
@@ -73,6 +74,7 @@ func (r CreateRecurringRequest) ToDomain(userID int64) domain.NewRecurringEntry 
 		Frequency:   domain.Frequency(r.Frequency),
 		StartDate:   startDate,
 		EndDate:     endDate,
+		CategoryID:  r.CategoryID,
 	}
 }
 
@@ -88,6 +90,10 @@ type RecurringResponse struct {
 	StartDate      string  `json:"start_date"`
 	EndDate        *string `json:"end_date"`
 	Active         bool    `json:"active"`
+
+	CategoryID    *int64  `json:"category_id"`
+	CategoryName  *string `json:"category_name"`
+	CategoryColor *string `json:"category_color"`
 }
 
 func NewRecurringResponse(entry domain.RecurringEntry) RecurringResponse {
@@ -101,6 +107,9 @@ func NewRecurringResponse(entry domain.RecurringEntry) RecurringResponse {
 		FrequencyLabel: entry.Frequency.Label(),
 		StartDate:      entry.StartDate.Format(dateLayout),
 		Active:         entry.Active,
+		CategoryID:     entry.CategoryID,
+		CategoryName:   entry.CategoryName,
+		CategoryColor:  entry.CategoryColor,
 	}
 
 	if entry.EndDate != nil {

@@ -79,6 +79,7 @@ type DashboardService interface {
 // CategoryRepository é a porta de persistência de categorias.
 type CategoryRepository interface {
 	Create(ctx context.Context, input NewCategory) (*Category, error)
+	FindByID(ctx context.Context, userID, id int64) (*Category, error)
 	List(ctx context.Context, userID int64) ([]Category, error)
 	Delete(ctx context.Context, userID, id int64) error
 }

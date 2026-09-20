@@ -21,16 +21,25 @@ func NewRecurringRepository(pool *pgxpool.Pool) *RecurringRepository {
 	return &RecurringRepository{pool: pool}
 }
 
-const recurringColumns = `id, user_id, description, amount, kind, frequency, start_date, end_date, active, created_at`
+// recurringColumns traz a categoria junto, pelo mesmo motivo dos lançamentos.
+const recurringColumns = `
+	r.id, r.user_id, r.description, r.amount, r.kind, r.frequency,
+	r.start_date, r.end_date, r.active, r.created_at,
+	r.category_id, c.name, c.color`
+
+const recurringFrom = `
+	FROM recurring_entries r
+	LEFT JOIN categories c ON c.id = r.category_id`
 
 func (r *RecurringRepository) Create(ctx context.Context, input domain.NewRecurringEntry) (*domain.RecurringEntry, error) {
 	const query = `
-		INSERT INTO recurring_entries (user_id, description, amount, kind, frequency, start_date, end_date)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING ` + recurringColumns
+		INSERT INTO recurring_entries
+			(user_id, description, amount, kind, frequency, start_date, end_date, category_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING id`
 
-	var entry domain.RecurringEntry
-	row := r.pool.QueryRow(ctx, query,
+	var id int64
+	err := r.pool.QueryRow(ctx, query,
 		input.UserID,
 		strings.TrimSpace(input.Description),
 		input.AmountCents,
@@ -38,9 +47,16 @@ func (r *RecurringRepository) Create(ctx context.Context, input domain.NewRecurr
 		string(input.Frequency),
 		domain.Day(input.StartDate),
 		normalizeEndDate(input.EndDate),
-	)
+		input.CategoryID,
+	).Scan(&id)
+	if err != nil {
+		return nil, domain.ErrInternal.Wrap(err)
+	}
 
-	if err := scanRecurring(row, &entry); err != nil {
+	const byID = `SELECT ` + recurringColumns + recurringFrom + ` WHERE r.id = $1`
+
+	var entry domain.RecurringEntry
+	if err := scanRecurring(r.pool.QueryRow(ctx, byID, id), &entry); err != nil {
 		return nil, domain.ErrInternal.Wrap(err)
 	}
 
@@ -48,13 +64,13 @@ func (r *RecurringRepository) Create(ctx context.Context, input domain.NewRecurr
 }
 
 func (r *RecurringRepository) List(ctx context.Context, userID int64) ([]domain.RecurringEntry, error) {
-	return r.list(ctx, `SELECT `+recurringColumns+`
-		FROM recurring_entries WHERE user_id = $1 ORDER BY description`, userID)
+	return r.list(ctx, `SELECT `+recurringColumns+recurringFrom+`
+		WHERE r.user_id = $1 ORDER BY r.description`, userID)
 }
 
 func (r *RecurringRepository) ListActive(ctx context.Context, userID int64) ([]domain.RecurringEntry, error) {
-	return r.list(ctx, `SELECT `+recurringColumns+`
-		FROM recurring_entries WHERE user_id = $1 AND active ORDER BY description`, userID)
+	return r.list(ctx, `SELECT `+recurringColumns+recurringFrom+`
+		WHERE r.user_id = $1 AND r.active ORDER BY r.description`, userID)
 }
 
 func (r *RecurringRepository) Delete(ctx context.Context, userID, id int64) error {
@@ -103,6 +119,7 @@ func scanRecurring(row scanner, entry *domain.RecurringEntry) error {
 		&entry.ID, &entry.UserID, &entry.Description, &entry.AmountCents,
 		&entry.Kind, &entry.Frequency, &entry.StartDate, &entry.EndDate,
 		&entry.Active, &entry.CreatedAt,
+		&entry.CategoryID, &entry.CategoryName, &entry.CategoryColor,
 	)
 }
 

@@ -247,3 +247,63 @@ func TestFixoSemanalPesaTodasAsOcorrenciasDoMes(t *testing.T) {
 		t.Errorf("despesas fixas = %d, esperava 40000 (quatro semanas)", overview.DespesasFixas)
 	}
 }
+
+func TestGastosPorCategoriaAgrupamEOrdenam(t *testing.T) {
+	painel, transacoes, _ := novoPainel(dia(2026, time.September, 30))
+
+	mercado, transporte := "Mercado", "Transporte"
+	idMercado, idTransporte := int64(1), int64(2)
+	cor := "#aabbcc"
+
+	comCategoria := func(descricao string, centavos int64, id *int64, nome *string) {
+		transacoes.items = append(transacoes.items, domain.Transaction{
+			ID: int64(len(transacoes.items) + 1), UserID: usuario, Description: descricao,
+			AmountCents: centavos, Kind: domain.KindDespesa,
+			OccurredAt: dia(2026, time.September, 10),
+			CategoryID: id, CategoryName: nome, CategoryColor: &cor,
+		})
+	}
+
+	comCategoria("Feira", 30000, &idMercado, &mercado)
+	comCategoria("Supermercado", 50000, &idMercado, &mercado)
+	comCategoria("Ônibus", 20000, &idTransporte, &transporte)
+	comCategoria("Avulso", 10000, nil, nil)
+
+	overview, err := painel.Overview(context.Background(), usuario, 2026, time.September)
+	if err != nil {
+		t.Fatalf("overview: %v", err)
+	}
+
+	if len(overview.GastosPorCategoria) != 3 {
+		t.Fatalf("esperava 3 grupos, veio %d", len(overview.GastosPorCategoria))
+	}
+
+	// Mercado soma as duas compras e por isso lidera.
+	primeiro := overview.GastosPorCategoria[0]
+	if primeiro.Label != "Mercado" || primeiro.Total != 80000 {
+		t.Errorf("primeiro = %q com %d, esperava Mercado com 80000", primeiro.Label, primeiro.Total)
+	}
+
+	ultimo := overview.GastosPorCategoria[2]
+	if ultimo.Label != "Sem categoria" || ultimo.CategoryID != nil {
+		t.Errorf("último = %q, esperava o balde Sem categoria", ultimo.Label)
+	}
+}
+
+func TestReceitaNaoEntraNosGastosPorCategoria(t *testing.T) {
+	painel, transacoes, _ := novoPainel(dia(2026, time.September, 30))
+
+	salario := "Salário"
+	id := int64(1)
+	transacoes.items = append(transacoes.items, domain.Transaction{
+		ID: 1, UserID: usuario, Description: "Salário", AmountCents: 900000,
+		Kind: domain.KindReceita, OccurredAt: dia(2026, time.September, 5),
+		CategoryID: &id, CategoryName: &salario,
+	})
+
+	overview, _ := painel.Overview(context.Background(), usuario, 2026, time.September)
+
+	if len(overview.GastosPorCategoria) != 0 {
+		t.Errorf("receita não é gasto, veio %v", overview.GastosPorCategoria)
+	}
+}

@@ -62,8 +62,8 @@ func run() error {
 	// Casos de uso.
 	clock := service.SystemClock{}
 	authService := service.NewAuthService(userRepository, hasher, tokens)
-	transactionService := service.NewTransactionService(transactionRepository, recurringRepository, clock)
-	recurringService := service.NewRecurringService(recurringRepository)
+	transactionService := service.NewTransactionService(transactionRepository, recurringRepository, categoryRepository, clock)
+	recurringService := service.NewRecurringService(recurringRepository, categoryRepository)
 	categoryService := service.NewCategoryService(categoryRepository)
 	dashboardService := service.NewDashboardService(transactionRepository, recurringRepository, clock)
 

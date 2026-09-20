@@ -2,8 +2,11 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -22,19 +25,47 @@ func NewTransactionRepository(pool *pgxpool.Pool) *TransactionRepository {
 }
 
 func (r *TransactionRepository) Create(ctx context.Context, input domain.NewTransaction) (*domain.Transaction, error) {
+	// O RETURNING não alcança a categoria, que está em outra tabela: o
+	// INSERT grava o id e o SELECT seguinte traz nome e cor.
 	const query = `
-		INSERT INTO transactions (user_id, description, amount, kind, occurred_at)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, user_id, description, amount, kind, occurred_at, created_at`
+		INSERT INTO transactions (user_id, description, amount, kind, occurred_at, category_id)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id`
 
-	var t domain.Transaction
+	var id int64
 	err := r.pool.QueryRow(ctx, query,
 		input.UserID,
 		strings.TrimSpace(input.Description),
 		input.AmountCents,
 		string(input.Kind),
 		domain.Day(input.OccurredAt),
-	).Scan(&t.ID, &t.UserID, &t.Description, &t.AmountCents, &t.Kind, &t.OccurredAt, &t.CreatedAt)
+		input.CategoryID,
+	).Scan(&id)
+	if err != nil {
+		return nil, domain.ErrInternal.Wrap(err)
+	}
+
+	return r.findByID(ctx, input.UserID, id)
+}
+
+// transactionColumns traz a categoria junto, para a listagem não precisar de
+// uma consulta por linha.
+const transactionColumns = `
+	t.id, t.user_id, t.description, t.amount, t.kind, t.occurred_at, t.created_at,
+	t.category_id, c.name, c.color`
+
+func (r *TransactionRepository) findByID(ctx context.Context, userID, id int64) (*domain.Transaction, error) {
+	const query = `
+		SELECT ` + transactionColumns + `
+		FROM transactions t
+		LEFT JOIN categories c ON c.id = t.category_id
+		WHERE t.id = $1 AND t.user_id = $2`
+
+	var t domain.Transaction
+	err := scanTransaction(r.pool.QueryRow(ctx, query, id, userID), &t)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrTransactionNotFound
+	}
 	if err != nil {
 		return nil, domain.ErrInternal.Wrap(err)
 	}
@@ -42,12 +73,25 @@ func (r *TransactionRepository) Create(ctx context.Context, input domain.NewTran
 	return &t, nil
 }
 
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanTransaction(row rowScanner, t *domain.Transaction) error {
+	return row.Scan(
+		&t.ID, &t.UserID, &t.Description, &t.AmountCents, &t.Kind,
+		&t.OccurredAt, &t.CreatedAt,
+		&t.CategoryID, &t.CategoryName, &t.CategoryColor,
+	)
+}
+
 func (r *TransactionRepository) ListByPeriod(ctx context.Context, userID int64, period domain.Period) ([]domain.Transaction, error) {
 	const query = `
-		SELECT id, user_id, description, amount, kind, occurred_at, created_at
-		FROM transactions
-		WHERE user_id = $1 AND occurred_at BETWEEN $2 AND $3
-		ORDER BY occurred_at, id`
+		SELECT ` + transactionColumns + `
+		FROM transactions t
+		LEFT JOIN categories c ON c.id = t.category_id
+		WHERE t.user_id = $1 AND t.occurred_at BETWEEN $2 AND $3
+		ORDER BY t.occurred_at, t.id`
 
 	rows, err := r.pool.Query(ctx, query, userID, period.From, period.To)
 	if err != nil {
@@ -58,9 +102,7 @@ func (r *TransactionRepository) ListByPeriod(ctx context.Context, userID int64, 
 	var transactions []domain.Transaction
 	for rows.Next() {
 		var t domain.Transaction
-		if err := rows.Scan(
-			&t.ID, &t.UserID, &t.Description, &t.AmountCents, &t.Kind, &t.OccurredAt, &t.CreatedAt,
-		); err != nil {
+		if err := scanTransaction(rows, &t); err != nil {
 			return nil, domain.ErrInternal.Wrap(err)
 		}
 		transactions = append(transactions, t)

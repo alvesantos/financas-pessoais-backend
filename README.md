@@ -161,6 +161,12 @@ sistema precisa lembrar de inverter nada.
 Sem descrição, o lançamento recebe o nome do próprio tipo: "Despesa",
 "Gasto no cartão de crédito". A regra mora no serviço, não no controller.
 
+A **categoria é opcional** e precisa ser do mesmo tipo do lançamento: uma
+categoria de receita em uma despesa produziria um agrupamento sem sentido no
+painel. A busca é no escopo do usuário, então a categoria de outra pessoa
+simplesmente não existe. Apagar uma categoria não apaga os lançamentos dela:
+`ON DELETE SET NULL` os deixa sem categoria.
+
 **Saldo atual** conta só o que já aconteceu, até hoje. **Saldo previsto**
 conta o mês fechado, incluindo o que ainda vai cair e as projeções dos fixos.
 
@@ -225,10 +231,9 @@ make test-all   # unitários + e2e
 
 ## Próximos passos
 
-As categorias já têm CRUD, e `transactions` e `recurring_entries` já têm a
-coluna `category_id`. **Falta ligar uma coisa à outra**: escolher a
-categoria ao lançar, exibi-la na lista e agrupar por ela no painel, que hoje
-agrupa por tipo.
+Editar e apagar uma ocorrência isolada de um fixo, com uma tabela de
+exceções. Hoje as projeções não existem como linha e por isso não podem ser
+mexidas uma a uma.
 
 Cada funcionalidade segue o mesmo caminho: porta em `domain/ports.go`,
 repositório em `repository/postgres/`, caso de uso em `service/`, DTO,

@@ -14,6 +14,7 @@ import (
 type TransactionService struct {
 	transactions domain.TransactionRepository
 	recurring    domain.RecurringRepository
+	categories   domain.CategoryRepository
 	clock        domain.Clock
 }
 
@@ -22,15 +23,25 @@ var _ domain.TransactionService = (*TransactionService)(nil)
 func NewTransactionService(
 	transactions domain.TransactionRepository,
 	recurring domain.RecurringRepository,
+	categories domain.CategoryRepository,
 	clock domain.Clock,
 ) *TransactionService {
-	return &TransactionService{transactions: transactions, recurring: recurring, clock: clock}
+	return &TransactionService{
+		transactions: transactions,
+		recurring:    recurring,
+		categories:   categories,
+		clock:        clock,
+	}
 }
 
 // Create grava um lançamento avulso. Sem descrição, o lançamento recebe o
 // nome do próprio tipo.
 func (s *TransactionService) Create(ctx context.Context, input domain.NewTransaction) (*domain.Transaction, error) {
 	if err := validateAmountAndKind(input.AmountCents, input.Kind); err != nil {
+		return nil, err
+	}
+
+	if err := ensureCategory(ctx, s.categories, input.UserID, input.CategoryID, input.Kind); err != nil {
 		return nil, err
 	}
 

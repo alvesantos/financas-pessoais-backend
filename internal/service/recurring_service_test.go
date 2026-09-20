@@ -10,7 +10,7 @@ import (
 )
 
 func TestFixoSemDescricaoUsaONomeDoTipo(t *testing.T) {
-	svc := service.NewRecurringService(&fakeRecurringRepo{})
+	svc := service.NewRecurringService(&fakeRecurringRepo{}, &fakeCategoryRepo{})
 
 	criado, err := svc.Create(context.Background(), domain.NewRecurringEntry{
 		UserID: usuario, AmountCents: 15990, Kind: domain.KindCartaoCredito,
@@ -26,7 +26,7 @@ func TestFixoSemDescricaoUsaONomeDoTipo(t *testing.T) {
 }
 
 func TestFixoRecusaFrequenciaInvalida(t *testing.T) {
-	svc := service.NewRecurringService(&fakeRecurringRepo{})
+	svc := service.NewRecurringService(&fakeRecurringRepo{}, &fakeCategoryRepo{})
 
 	_, err := svc.Create(context.Background(), domain.NewRecurringEntry{
 		UserID: usuario, AmountCents: 15990, Kind: domain.KindDespesa,
@@ -40,7 +40,7 @@ func TestFixoRecusaFrequenciaInvalida(t *testing.T) {
 }
 
 func TestFixoRecusaFimAntesDoInicio(t *testing.T) {
-	svc := service.NewRecurringService(&fakeRecurringRepo{})
+	svc := service.NewRecurringService(&fakeRecurringRepo{}, &fakeCategoryRepo{})
 	fim := dia(2026, time.January, 10)
 
 	_, err := svc.Create(context.Background(), domain.NewRecurringEntry{
@@ -56,7 +56,7 @@ func TestFixoRecusaFimAntesDoInicio(t *testing.T) {
 
 func TestFixoAceitaTodasAsFrequencias(t *testing.T) {
 	for _, frequencia := range domain.AllFrequencies {
-		svc := service.NewRecurringService(&fakeRecurringRepo{})
+		svc := service.NewRecurringService(&fakeRecurringRepo{}, &fakeCategoryRepo{})
 
 		criado, err := svc.Create(context.Background(), domain.NewRecurringEntry{
 			UserID: usuario, Description: "Academia", AmountCents: 15990,

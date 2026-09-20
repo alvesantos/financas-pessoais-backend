@@ -30,6 +30,15 @@ func (f *fakeCategoryRepo) Create(_ context.Context, input domain.NewCategory) (
 	return &category, nil
 }
 
+func (f *fakeCategoryRepo) FindByID(_ context.Context, _, id int64) (*domain.Category, error) {
+	for i := range f.items {
+		if f.items[i].ID == id {
+			return &f.items[i], nil
+		}
+	}
+	return nil, domain.ErrCategoryNotFound
+}
+
 func (f *fakeCategoryRepo) List(_ context.Context, _ int64) ([]domain.Category, error) {
 	return f.items, nil
 }

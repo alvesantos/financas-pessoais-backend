@@ -10,11 +10,20 @@ type MonthTotals struct {
 	Saldo    int64
 }
 
-// KindTotal é quanto foi gasto em um tipo, para o gráfico de composição.
+// KindTotal é quanto foi gasto em um tipo.
 type KindTotal struct {
 	Kind  Kind
 	Label string
 	Total int64
+}
+
+// CategoryTotal é quanto foi gasto em uma categoria, para o gráfico de
+// composição. CategoryID nulo é o balde de quem ainda não tem categoria.
+type CategoryTotal struct {
+	CategoryID *int64
+	Label      string
+	Color      string
+	Total      int64
 }
 
 // YearTotals são os números do ano inteiro.
@@ -35,9 +44,10 @@ type Dashboard struct {
 	// no período, qualquer que seja a frequência de cada um.
 	DespesasFixas int64
 
-	Year          YearTotals
-	Month         MonthSummary
-	PorMes        []MonthTotals
-	GastosPorTipo []KindTotal
-	MaiorGasto    *Transaction
+	Year               YearTotals
+	Month              MonthSummary
+	PorMes             []MonthTotals
+	GastosPorTipo      []KindTotal
+	GastosPorCategoria []CategoryTotal
+	MaiorGasto         *Transaction
 }
