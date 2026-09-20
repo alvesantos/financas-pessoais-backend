@@ -101,6 +101,70 @@ func get(t *testing.T, path, token string) apiResponse {
 	return do(t, http.MethodGet, path, nil, token)
 }
 
+func postAuth(t *testing.T, path string, body any, token string) apiResponse {
+	t.Helper()
+	return do(t, http.MethodPost, path, body, token)
+}
+
+func del(t *testing.T, path, token string) apiResponse {
+	t.Helper()
+	return do(t, http.MethodDelete, path, nil, token)
+}
+
+// getList executa um GET cuja resposta é um array JSON.
+func getList(t *testing.T, path, token string) (int, []map[string]any) {
+	t.Helper()
+
+	req, err := http.NewRequest(http.MethodGet, server.URL+path, nil)
+	if err != nil {
+		t.Fatalf("montar requisição: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("executar requisição: %v", err)
+	}
+	defer res.Body.Close()
+
+	raw, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatalf("ler resposta: %v", err)
+	}
+
+	var list []map[string]any
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &list); err != nil {
+			t.Fatalf("resposta não é um array JSON: %s", raw)
+		}
+	}
+
+	return res.StatusCode, list
+}
+
+// number lê um campo numérico do JSON, que chega como float64.
+func number(t *testing.T, item map[string]any, key string) int64 {
+	t.Helper()
+
+	value, ok := item[key].(float64)
+	if !ok {
+		t.Fatalf("campo %q não é número em %v", key, item)
+	}
+
+	return int64(value)
+}
+
+func text(t *testing.T, item map[string]any, key string) string {
+	t.Helper()
+
+	value, ok := item[key].(string)
+	if !ok {
+		t.Fatalf("campo %q não é texto em %v", key, item)
+	}
+
+	return value
+}
+
 // registerUser cria uma conta e devolve o token da sessão.
 func registerUser(t *testing.T, name, email, password string) string {
 	t.Helper()

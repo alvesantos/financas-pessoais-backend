@@ -68,12 +68,19 @@ func TestMain(m *testing.M) {
 // buildHandler monta a mesma cadeia de dependências do cmd/api.
 func buildHandler(pool *pgxpool.Pool) http.Handler {
 	userRepository := postgres.NewUserRepository(pool)
+	transactionRepository := postgres.NewTransactionRepository(pool)
+	recurringRepository := postgres.NewRecurringRepository(pool)
+
 	// Custo mínimo do bcrypt: a suíte testa o fluxo, não a criptografia.
 	hasher := auth.NewBcryptHasher(4)
 	tokens := auth.NewJWTIssuer(testJWTSecret, "financas-api", time.Hour)
+	clock := service.SystemClock{}
 
 	return router.New(router.Deps{
 		Auth:           service.NewAuthService(userRepository, hasher, tokens),
+		Transactions:   service.NewTransactionService(transactionRepository, recurringRepository, clock),
+		Recurring:      service.NewRecurringService(recurringRepository),
+		Dashboard:      service.NewDashboardService(transactionRepository, recurringRepository, clock),
 		Tokens:         tokens,
 		DB:             controller.Pinger(pool),
 		AllowedOrigins: []string{"http://localhost:5173"},
@@ -129,7 +136,7 @@ func resetDatabase(t *testing.T) {
 	t.Helper()
 
 	_, err := pool.Exec(context.Background(),
-		`TRUNCATE transactions, categories, accounts, users RESTART IDENTITY CASCADE`)
+		`TRUNCATE transactions, recurring_entries, categories, users RESTART IDENTITY CASCADE`)
 	if err != nil {
 		t.Fatalf("limpar banco: %v", err)
 	}

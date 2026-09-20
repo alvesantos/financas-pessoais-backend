@@ -1,0 +1,134 @@
+package service
+
+import (
+	"context"
+	"sort"
+	"time"
+
+	"github.com/alvesantos/financas-backend/internal/domain"
+)
+
+// DashboardService monta as métricas do painel a partir dos mesmos dados da
+// tela de lançamentos — incluindo as projeções dos fixos, para que os
+// números das duas telas nunca discordem.
+type DashboardService struct {
+	transactions domain.TransactionRepository
+	recurring    domain.RecurringRepository
+	clock        domain.Clock
+}
+
+var _ domain.DashboardService = (*DashboardService)(nil)
+
+func NewDashboardService(
+	transactions domain.TransactionRepository,
+	recurring domain.RecurringRepository,
+	clock domain.Clock,
+) *DashboardService {
+	return &DashboardService{transactions: transactions, recurring: recurring, clock: clock}
+}
+
+func (s *DashboardService) Overview(
+	ctx context.Context, userID int64, year int, month time.Month,
+) (*domain.Dashboard, error) {
+	// Um único SELECT cobre o ano inteiro; os fixos são projetados mês a mês.
+	stored, err := s.transactions.ListByPeriod(ctx, userID, domain.YearPeriod(year))
+	if err != nil {
+		return nil, err
+	}
+
+	recurringEntries, err := s.recurring.ListActive(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	today := s.clock.Today()
+	byMonth := groupByMonth(stored)
+
+	dashboard := &domain.Dashboard{
+		Year:   domain.YearTotals{Year: year},
+		PorMes: make([]domain.MonthTotals, 0, 12),
+	}
+
+	var entriesDoMes []domain.Transaction
+
+	for m := time.January; m <= time.December; m++ {
+		period := domain.MonthPeriod(year, m)
+
+		entries := byMonth[m]
+		for _, entry := range recurringEntries {
+			entries = append(entries, entry.ProjectInto(period)...)
+		}
+
+		summary := summarize(entries, year, m, today)
+
+		dashboard.PorMes = append(dashboard.PorMes, domain.MonthTotals{
+			Month:    m,
+			Receitas: summary.Receitas,
+			Despesas: summary.Despesas,
+			Saldo:    summary.SaldoPrevisto,
+		})
+
+		dashboard.Year.Receitas += summary.Receitas
+		dashboard.Year.Despesas += summary.Despesas
+
+		if m == month {
+			dashboard.Month = summary
+			entriesDoMes = entries
+		}
+	}
+
+	dashboard.Year.Saldo = dashboard.Year.Receitas - dashboard.Year.Despesas
+	dashboard.GastosPorTipo = expensesByKind(dashboard.Month.TotalPorTipo)
+	dashboard.MaiorGasto = biggestExpense(entriesDoMes)
+
+	return dashboard, nil
+}
+
+func groupByMonth(entries []domain.Transaction) map[time.Month][]domain.Transaction {
+	byMonth := map[time.Month][]domain.Transaction{}
+
+	for _, entry := range entries {
+		month := entry.OccurredAt.Month()
+		byMonth[month] = append(byMonth[month], entry)
+	}
+
+	return byMonth
+}
+
+// expensesByKind devolve só os tipos que subtraem saldo, do maior para o
+// menor: o gráfico mostra onde o dinheiro foi.
+func expensesByKind(totals map[domain.Kind]int64) []domain.KindTotal {
+	result := make([]domain.KindTotal, 0, len(totals))
+
+	for _, kind := range domain.AllKinds {
+		if kind.IsIncome() {
+			continue
+		}
+
+		if total := totals[kind]; total > 0 {
+			result = append(result, domain.KindTotal{Kind: kind, Label: kind.Label(), Total: total})
+		}
+	}
+
+	sort.SliceStable(result, func(i, j int) bool { return result[i].Total > result[j].Total })
+
+	return result
+}
+
+// biggestExpense é o maior gasto isolado do mês, útil como destaque.
+func biggestExpense(entries []domain.Transaction) *domain.Transaction {
+	var biggest *domain.Transaction
+
+	for i := range entries {
+		entry := entries[i]
+		if entry.Kind.IsIncome() {
+			continue
+		}
+
+		if biggest == nil || entry.AmountCents > biggest.AmountCents {
+			biggest = &entry
+		}
+	}
+
+	return biggest
+}

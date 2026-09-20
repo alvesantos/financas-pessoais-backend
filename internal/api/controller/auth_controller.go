@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/alvesantos/financas-backend/internal/api/dto"
-	"github.com/alvesantos/financas-backend/internal/api/middleware"
 	"github.com/alvesantos/financas-backend/internal/api/request"
 	"github.com/alvesantos/financas-backend/internal/api/response"
 	"github.com/alvesantos/financas-backend/internal/domain"
@@ -56,10 +55,8 @@ func (c *AuthController) Login(w http.ResponseWriter, r *http.Request) {
 
 // Me devolve o usuário autenticado. GET /api/auth/me
 func (c *AuthController) Me(w http.ResponseWriter, r *http.Request) {
-	userID, ok := middleware.UserIDFrom(r.Context())
+	userID, ok := currentUser(w, r)
 	if !ok {
-		// Só acontece se a rota for registrada fora do grupo autenticado.
-		response.Fail(w, r, domain.ErrUnauthenticated)
 		return
 	}
 

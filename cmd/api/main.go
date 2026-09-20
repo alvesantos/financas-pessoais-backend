@@ -53,15 +53,24 @@ func run() error {
 
 	// Adaptadores de saída.
 	userRepository := postgres.NewUserRepository(pool)
+	transactionRepository := postgres.NewTransactionRepository(pool)
+	recurringRepository := postgres.NewRecurringRepository(pool)
 	hasher := auth.NewBcryptHasher(cfg.BcryptCost)
 	tokens := auth.NewJWTIssuer(cfg.JWTSecret, cfg.JWTIssuer, cfg.JWTExpiration)
 
 	// Casos de uso.
+	clock := service.SystemClock{}
 	authService := service.NewAuthService(userRepository, hasher, tokens)
+	transactionService := service.NewTransactionService(transactionRepository, recurringRepository, clock)
+	recurringService := service.NewRecurringService(recurringRepository)
+	dashboardService := service.NewDashboardService(transactionRepository, recurringRepository, clock)
 
 	// Adaptador de entrada.
 	handler := router.New(router.Deps{
 		Auth:           authService,
+		Transactions:   transactionService,
+		Recurring:      recurringService,
+		Dashboard:      dashboardService,
 		Tokens:         tokens,
 		DB:             controller.Pinger(pool),
 		AllowedOrigins: cfg.AllowedOrigins,

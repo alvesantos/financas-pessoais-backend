@@ -12,6 +12,9 @@ import (
 // Deps são as dependências já construídas que o roteador distribui.
 type Deps struct {
 	Auth           domain.AuthService
+	Transactions   domain.TransactionService
+	Recurring      domain.RecurringService
+	Dashboard      domain.DashboardService
 	Tokens         domain.TokenIssuer
 	DB             controller.Pinger
 	AllowedOrigins []string
@@ -22,11 +25,16 @@ type Deps struct {
 func New(deps Deps) http.Handler {
 	mux := http.NewServeMux()
 
-	authController := controller.NewAuthController(deps.Auth)
-	healthController := controller.NewHealthController(deps.DB)
+	controllers := controllers{
+		auth:         controller.NewAuthController(deps.Auth),
+		health:       controller.NewHealthController(deps.DB),
+		transactions: controller.NewTransactionController(deps.Transactions),
+		recurring:    controller.NewRecurringController(deps.Recurring),
+		dashboard:    controller.NewDashboardController(deps.Dashboard),
+	}
 
-	registerPublicRoutes(mux, authController, healthController)
-	registerProtectedRoutes(mux, authController, middleware.Authenticate(deps.Tokens))
+	registerPublicRoutes(mux, controllers)
+	registerProtectedRoutes(mux, controllers, middleware.Authenticate(deps.Tokens))
 
 	mux.HandleFunc("/", notFound)
 
@@ -38,30 +46,43 @@ func New(deps Deps) http.Handler {
 	)
 }
 
+// controllers agrupa os controllers para as funções de registro não
+// crescerem um parâmetro por rota nova.
+type controllers struct {
+	auth         *controller.AuthController
+	health       *controller.HealthController
+	transactions *controller.TransactionController
+	recurring    *controller.RecurringController
+	dashboard    *controller.DashboardController
+}
+
 // registerPublicRoutes: acessíveis sem token.
-func registerPublicRoutes(
-	mux *http.ServeMux,
-	auth *controller.AuthController,
-	health *controller.HealthController,
-) {
-	mux.HandleFunc("GET /api/health", health.Live)
-	mux.HandleFunc("GET /api/health/ready", health.Ready)
-	mux.HandleFunc("POST /api/auth/register", auth.Register)
-	mux.HandleFunc("POST /api/auth/login", auth.Login)
+func registerPublicRoutes(mux *http.ServeMux, c controllers) {
+	mux.HandleFunc("GET /api/health", c.health.Live)
+	mux.HandleFunc("GET /api/health/ready", c.health.Ready)
+	mux.HandleFunc("POST /api/auth/register", c.auth.Register)
+	mux.HandleFunc("POST /api/auth/login", c.auth.Login)
 }
 
 // registerProtectedRoutes: exigem Bearer token válido. Cada rota é envolvida
 // individualmente, então esquecer o middleware não é possível por descuido.
-func registerProtectedRoutes(
-	mux *http.ServeMux,
-	auth *controller.AuthController,
-	authenticated middleware.Middleware,
-) {
+func registerProtectedRoutes(mux *http.ServeMux, c controllers, authenticated middleware.Middleware) {
 	protect := func(pattern string, handler http.HandlerFunc) {
 		mux.Handle(pattern, authenticated(handler))
 	}
 
-	protect("GET /api/auth/me", auth.Me)
+	protect("GET /api/auth/me", c.auth.Me)
+
+	protect("GET /api/transactions", c.transactions.List)
+	protect("POST /api/transactions", c.transactions.Create)
+	protect("GET /api/transactions/summary", c.transactions.Summary)
+	protect("DELETE /api/transactions/{id}", c.transactions.Delete)
+
+	protect("GET /api/recurring", c.recurring.List)
+	protect("POST /api/recurring", c.recurring.Create)
+	protect("DELETE /api/recurring/{id}", c.recurring.Delete)
+
+	protect("GET /api/dashboard", c.dashboard.Overview)
 }
 
 func notFound(w http.ResponseWriter, r *http.Request) {

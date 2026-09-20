@@ -1,8 +1,8 @@
-# Finanças — API
+# Finn — API
 
-API REST em Go para o controle de finanças pessoais. Arquitetura em camadas:
-o domínio no centro, adaptadores na borda, dependências sempre apontando
-para dentro.
+API REST em Go do **Finn — Finanças Pessoais**. Arquitetura em camadas: o
+domínio no centro, adaptadores na borda, dependências sempre apontando para
+dentro.
 
 ## Stack
 
@@ -22,7 +22,10 @@ make db-up               # Postgres em localhost:5434
 make run                 # http://localhost:8080
 ```
 
-O schema é aplicado na primeira execução; não há passo de migração à parte.
+As migrações rodam sozinhas ao subir: `internal/database/migrations.go`
+mantém a lista versionada e aplica o que falta, registrando cada passo em
+`schema_migrations`. Bancos criados antes do controle de versão são marcados
+com a versão 1 automaticamente.
 
 ## Comandos
 
@@ -128,12 +131,50 @@ sempre responde uma mensagem genérica.
 | Método | Rota | Descrição |
 |---|---|---|
 | GET | `/api/auth/me` | Usuário da sessão |
+| GET | `/api/transactions?year=&month=` | Lançamentos do mês, com os fixos projetados |
+| POST | `/api/transactions` | Cria um lançamento avulso |
+| DELETE | `/api/transactions/{id}` | Apaga um lançamento |
+| GET | `/api/transactions/summary?year=&month=` | Saldo atual e previsto do mês |
+| GET | `/api/recurring` | Lista os lançamentos fixos |
+| POST | `/api/recurring` | Cria um lançamento fixo |
+| DELETE | `/api/recurring/{id}` | Apaga um fixo, e com ele as projeções |
+| GET | `/api/dashboard?year=&month=` | Métricas do ano e do mês |
+
+Sem `year` e `month`, as rotas assumem o mês corrente.
 
 ```bash
 curl -X POST http://localhost:8080/api/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"email":"voce@exemplo.com","password":"senha12345"}'
 ```
+
+## Lançamentos
+
+Quatro tipos: `receita`, `despesa`, `cartao_credito` e `investimento`.
+**Só receita soma saldo**; os outros três subtraem. O valor é sempre gravado
+positivo e o sinal vem do tipo (`domain.Kind.Signed`), então nenhum lugar do
+sistema precisa lembrar de inverter nada.
+
+Sem descrição, o lançamento recebe o nome do próprio tipo — "Despesa",
+"Gasto no cartão de crédito". A regra mora no serviço, não no controller.
+
+**Saldo atual** conta só o que já aconteceu, até hoje. **Saldo previsto**
+conta o mês fechado, incluindo o que ainda vai cair e as projeções dos fixos.
+
+## Lançamentos fixos
+
+Um fixo é uma regra — "Academia, todo dia 20, R$ 159,90" — com uma das seis
+frequências: diário, semanal, quinzenal, mensal, semestral e anual.
+
+**Fixos não geram linhas em `transactions`.** As ocorrências são projetadas
+na leitura, por `domain.RecurringEntry.OccurrencesIn`. Isso evita o banco
+divergir quando a regra muda, e faz apagar um fixo sumir com as projeções
+dele em todos os meses de uma vez. Em troca, uma ocorrência isolada não pode
+ser editada — o que é o próximo passo natural, com uma tabela de exceções.
+
+O ciclo conta desde a data de início, não do começo do mês: um semanal que
+começa em 01/01 cai nos dias 3, 10, 17 e 24 de setembro. Um mensal do dia 31
+cai no último dia dos meses mais curtos, em vez de vazar para o mês seguinte.
 
 ## Decisões
 
@@ -169,6 +210,11 @@ make test-all   # unitários + e2e
 
 ## Próximos passos
 
-`accounts`, `categories` e `transactions` já existem no schema. Cada uma
-segue o mesmo caminho: porta em `domain/ports.go`, repositório em
-`repository/postgres/`, caso de uso em `service/`, controller e rota em `api/`.
+A tabela `categories` já existe no schema, e `transactions` e
+`recurring_entries` já têm a coluna `category_id` — falta o CRUD e ligar a
+categoria ao lançamento. O gráfico de composição do painel hoje agrupa por
+tipo; quando a categoria entrar, ele passa a agrupar por categoria.
+
+Cada funcionalidade segue o mesmo caminho: porta em `domain/ports.go`,
+repositório em `repository/postgres/`, caso de uso em `service/`, DTO,
+controller e rota em `api/`, com teste unitário e e2e.

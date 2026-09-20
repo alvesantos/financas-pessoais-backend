@@ -32,3 +32,43 @@ type AuthService interface {
 	Login(ctx context.Context, input Credentials) (*Session, error)
 	CurrentUser(ctx context.Context, userID int64) (*User, error)
 }
+
+// Clock isola "hoje" do relógio real, para que o saldo atual seja testável.
+type Clock interface {
+	Today() time.Time
+}
+
+// TransactionRepository é a porta de persistência de lançamentos.
+type TransactionRepository interface {
+	Create(ctx context.Context, input NewTransaction) (*Transaction, error)
+	ListByPeriod(ctx context.Context, userID int64, period Period) ([]Transaction, error)
+	Delete(ctx context.Context, userID, id int64) error
+}
+
+// RecurringRepository é a porta de persistência de lançamentos fixos.
+type RecurringRepository interface {
+	Create(ctx context.Context, input NewRecurringEntry) (*RecurringEntry, error)
+	ListActive(ctx context.Context, userID int64) ([]RecurringEntry, error)
+	List(ctx context.Context, userID int64) ([]RecurringEntry, error)
+	Delete(ctx context.Context, userID, id int64) error
+}
+
+// TransactionService é a porta de entrada dos casos de uso de lançamentos.
+type TransactionService interface {
+	Create(ctx context.Context, input NewTransaction) (*Transaction, error)
+	ListMonth(ctx context.Context, userID int64, year int, month time.Month) ([]Transaction, error)
+	Summary(ctx context.Context, userID int64, year int, month time.Month) (*MonthSummary, error)
+	Delete(ctx context.Context, userID, id int64) error
+}
+
+// RecurringService é a porta de entrada dos casos de uso de fixos.
+type RecurringService interface {
+	Create(ctx context.Context, input NewRecurringEntry) (*RecurringEntry, error)
+	List(ctx context.Context, userID int64) ([]RecurringEntry, error)
+	Delete(ctx context.Context, userID, id int64) error
+}
+
+// DashboardService monta as métricas do painel.
+type DashboardService interface {
+	Overview(ctx context.Context, userID int64, year int, month time.Month) (*Dashboard, error)
+}

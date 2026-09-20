@@ -1,6 +1,7 @@
-# Finanças — API (Go)
+# Finn — API (Go)
 
-API REST de finanças pessoais. Arquitetura em camadas, domínio no centro.
+API REST do Finn — Finanças Pessoais. Arquitetura em camadas, domínio no
+centro.
 
 ## Regras obrigatórias
 
@@ -79,7 +80,16 @@ DTO em `api/dto/` → controller em `api/controller/` → rota em
 
 - Código, comentários, mensagens de erro e commits em **português**.
 - Comentário explica o porquê de uma decisão, não o que a linha faz.
-- **Dinheiro em centavos** (`BIGINT`). Nunca ponto flutuante.
+- **Dinheiro em centavos** (`BIGINT`), sempre positivo. O sinal vem do tipo
+  (`domain.Kind.Signed`) — nenhum lugar inverte valor na mão.
+- **Só `receita` soma saldo.** Despesa, cartão e investimento subtraem.
+- **Lançamento sem descrição recebe o nome do tipo**, e a regra mora no
+  serviço, nunca no controller.
+- **Fixos não viram linhas em `transactions`**: as ocorrências são projetadas
+  na leitura. Ao mexer nisso, o painel e a tela de lançamentos têm que
+  continuar contando igual — os dois passam pelo mesmo `summarize`.
+- **Schema muda por migração nova** em `internal/database/migrations.go`.
+  Migração já commitada nunca é editada.
 - Erros usam `domain.Error` com código de negócio. A tradução para status
   HTTP acontece só em `api/response/error.go`.
 - Causa interna de erro vai para o log, nunca para o cliente. 5xx responde

@@ -83,12 +83,14 @@ func AsError(err error) (*Error, bool) {
 
 // Sentinelas usadas por serviços e repositórios.
 var (
-	ErrUserNotFound       = NewError(CodeNotFound, "usuário não encontrado")
-	ErrEmailTaken         = NewError(CodeConflict, "e-mail já cadastrado")
-	ErrInvalidCredentials = NewError(CodeUnauthorized, "e-mail ou senha incorretos")
-	ErrUnauthenticated    = NewError(CodeUnauthorized, "token inválido ou expirado")
-	ErrMissingToken       = NewError(CodeUnauthorized, "token de acesso ausente")
-	ErrInvalidPayload     = NewError(CodeInvalidPayload, "corpo da requisição inválido")
-	ErrValidation         = NewError(CodeValidation, "dados inválidos")
-	ErrInternal           = NewError(CodeInternal, "erro interno do servidor")
+	ErrUserNotFound        = NewError(CodeNotFound, "usuário não encontrado")
+	ErrTransactionNotFound = NewError(CodeNotFound, "lançamento não encontrado")
+	ErrRecurringNotFound   = NewError(CodeNotFound, "lançamento fixo não encontrado")
+	ErrEmailTaken          = NewError(CodeConflict, "e-mail já cadastrado")
+	ErrInvalidCredentials  = NewError(CodeUnauthorized, "e-mail ou senha incorretos")
+	ErrUnauthenticated     = NewError(CodeUnauthorized, "token inválido ou expirado")
+	ErrMissingToken        = NewError(CodeUnauthorized, "token de acesso ausente")
+	ErrInvalidPayload      = NewError(CodeInvalidPayload, "corpo da requisição inválido")
+	ErrValidation          = NewError(CodeValidation, "dados inválidos")
+	ErrInternal            = NewError(CodeInternal, "erro interno do servidor")
 )
