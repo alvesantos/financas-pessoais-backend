@@ -63,6 +63,40 @@ func (r *RecurringRepository) Create(ctx context.Context, input domain.NewRecurr
 	return &entry, nil
 }
 
+// Update reescreve o fixo. A cláusula com user_id impede editar o de outra
+// pessoa.
+func (r *RecurringRepository) Update(ctx context.Context, input domain.UpdateRecurringEntry) (*domain.RecurringEntry, error) {
+	const query = `
+		UPDATE recurring_entries SET
+			description = $3, amount = $4, kind = $5, frequency = $6,
+			start_date = $7, end_date = $8, category_id = $9, active = $10
+		WHERE id = $1 AND user_id = $2`
+
+	tag, err := r.pool.Exec(ctx, query,
+		input.ID, input.UserID,
+		strings.TrimSpace(input.Description), input.AmountCents,
+		string(input.Kind), string(input.Frequency),
+		domain.Day(input.StartDate), normalizeEndDate(input.EndDate),
+		input.CategoryID, input.Active,
+	)
+	if err != nil {
+		return nil, domain.ErrInternal.Wrap(err)
+	}
+
+	if tag.RowsAffected() == 0 {
+		return nil, domain.ErrRecurringNotFound
+	}
+
+	const byID = `SELECT ` + recurringColumns + recurringFrom + ` WHERE r.id = $1`
+
+	var entry domain.RecurringEntry
+	if err := scanRecurring(r.pool.QueryRow(ctx, byID, input.ID), &entry); err != nil {
+		return nil, domain.ErrInternal.Wrap(err)
+	}
+
+	return &entry, nil
+}
+
 func (r *RecurringRepository) List(ctx context.Context, userID int64) ([]domain.RecurringEntry, error) {
 	return r.list(ctx, `SELECT `+recurringColumns+recurringFrom+`
 		WHERE r.user_id = $1 ORDER BY r.description`, userID)

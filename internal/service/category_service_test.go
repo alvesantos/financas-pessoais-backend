@@ -30,6 +30,18 @@ func (f *fakeCategoryRepo) Create(_ context.Context, input domain.NewCategory) (
 	return &category, nil
 }
 
+func (f *fakeCategoryRepo) Update(_ context.Context, category domain.Category) (*domain.Category, error) {
+	for i := range f.items {
+		if f.items[i].ID == category.ID {
+			f.items[i].Name = category.Name
+			f.items[i].Kind = category.Kind
+			f.items[i].Color = category.Color
+			return &f.items[i], nil
+		}
+	}
+	return nil, domain.ErrCategoryNotFound
+}
+
 func (f *fakeCategoryRepo) FindByID(_ context.Context, _, id int64) (*domain.Category, error) {
 	for i := range f.items {
 		if f.items[i].ID == id {

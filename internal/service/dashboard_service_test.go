@@ -30,7 +30,8 @@ func gravar(t *testing.T, repo *fakeTransactionRepo, descricao string, centavos 
 	t.Helper()
 
 	if _, err := repo.Create(context.Background(), domain.NewTransaction{
-		UserID: usuario, Description: descricao, AmountCents: centavos, Kind: tipo, OccurredAt: data,
+		UserID: usuario, Description: descricao, AmountCents: centavos,
+		Kind: tipo, OccurredAt: data, Paid: true,
 	}); err != nil {
 		t.Fatalf("gravar lançamento: %v", err)
 	}
@@ -187,7 +188,11 @@ func TestSaldoAtualIgnoraOQueAindaNaoFoiPago(t *testing.T) {
 	painel, transacoes, _ := novoPainel(hoje)
 
 	gravar(t, transacoes, "Salário", 500000, domain.KindReceita, dia(2026, time.September, 5))
-	gravar(t, transacoes, "Aluguel", 200000, domain.KindDespesa, dia(2026, time.September, 25))
+	// Lançado, mas ainda não pago.
+	transacoes.items = append(transacoes.items, domain.Transaction{
+		ID: 99, UserID: usuario, Description: "Aluguel", AmountCents: 200000,
+		Kind: domain.KindDespesa, OccurredAt: dia(2026, time.September, 25), Paid: false,
+	})
 
 	overview, _ := painel.Overview(context.Background(), usuario, 2026, time.September)
 

@@ -16,11 +16,14 @@ const maxDescriptionLength = 120
 // CreateTransactionRequest é o corpo de POST /api/transactions.
 // A descrição é opcional: em branco, vira o nome do tipo.
 type CreateTransactionRequest struct {
-	Description string `json:"description"`
-	AmountCents int64  `json:"amount_cents"`
-	Kind        string `json:"kind"`
-	OccurredAt  string `json:"occurred_at"`
-	CategoryID  *int64 `json:"category_id"`
+	Description  string `json:"description"`
+	AmountCents  int64  `json:"amount_cents"`
+	Kind         string `json:"kind"`
+	OccurredAt   string `json:"occurred_at"`
+	CategoryID   *int64 `json:"category_id"`
+	Paid         *bool  `json:"paid"`
+	CreditCardID *int64 `json:"credit_card_id"`
+	Invoice      string `json:"invoice"`
 }
 
 func (r CreateTransactionRequest) Validate() error {
@@ -48,13 +51,27 @@ func (r CreateTransactionRequest) Validate() error {
 func (r CreateTransactionRequest) ToDomain(userID int64) domain.NewTransaction {
 	occurredAt, _ := parseDate(r.OccurredAt)
 
+	// Sem marcação explícita, vale a data: o que já passou conta como pago.
+	paid := !occurredAt.After(domain.Day(time.Now().UTC()))
+	if r.Paid != nil {
+		paid = *r.Paid
+	}
+
+	invoice := domain.InvoiceChoice(r.Invoice)
+	if invoice == "" {
+		invoice = domain.InvoiceCurrent
+	}
+
 	return domain.NewTransaction{
-		UserID:      userID,
-		Description: strings.TrimSpace(r.Description),
-		AmountCents: r.AmountCents,
-		Kind:        domain.Kind(r.Kind),
-		OccurredAt:  occurredAt,
-		CategoryID:  r.CategoryID,
+		UserID:       userID,
+		Description:  strings.TrimSpace(r.Description),
+		AmountCents:  r.AmountCents,
+		Kind:         domain.Kind(r.Kind),
+		OccurredAt:   occurredAt,
+		CategoryID:   r.CategoryID,
+		Paid:         paid,
+		CreditCardID: r.CreditCardID,
+		Invoice:      invoice,
 	}
 }
 
@@ -76,6 +93,11 @@ type TransactionResponse struct {
 	CategoryID    *int64  `json:"category_id"`
 	CategoryName  *string `json:"category_name"`
 	CategoryColor *string `json:"category_color"`
+
+	Paid           bool    `json:"paid"`
+	CreditCardID   *int64  `json:"credit_card_id"`
+	CreditCardName *string `json:"credit_card_name"`
+	InvoiceMonth   *string `json:"invoice_month"`
 
 	DebtID            *int64 `json:"debt_id,omitempty"`
 	InstallmentNumber *int   `json:"installment_number,omitempty"`
@@ -99,6 +121,14 @@ func NewTransactionResponse(t domain.Transaction) TransactionResponse {
 		DebtID:            t.DebtID,
 		InstallmentNumber: t.InstallmentNumber,
 		InstallmentsTotal: t.InstallmentsTotal,
+		Paid:              t.Paid,
+		CreditCardID:      t.CreditCardID,
+		CreditCardName:    t.CreditCardName,
+	}
+
+	if t.InvoiceMonth != nil {
+		invoice := t.InvoiceMonth.Format(dateLayout)
+		response.InvoiceMonth = &invoice
 	}
 
 	if t.Frequency != nil {

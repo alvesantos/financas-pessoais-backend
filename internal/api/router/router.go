@@ -16,6 +16,7 @@ type Deps struct {
 	Recurring      domain.RecurringService
 	Categories     domain.CategoryService
 	Debts          domain.DebtService
+	Cards          domain.CreditCardService
 	Clock          domain.Clock
 	Dashboard      domain.DashboardService
 	Tokens         domain.TokenIssuer
@@ -35,6 +36,7 @@ func New(deps Deps) http.Handler {
 		recurring:    controller.NewRecurringController(deps.Recurring),
 		categories:   controller.NewCategoryController(deps.Categories),
 		debts:        controller.NewDebtController(deps.Debts, deps.Clock),
+		cards:        controller.NewCreditCardController(deps.Cards),
 		dashboard:    controller.NewDashboardController(deps.Dashboard),
 	}
 
@@ -60,6 +62,7 @@ type controllers struct {
 	recurring    *controller.RecurringController
 	categories   *controller.CategoryController
 	debts        *controller.DebtController
+	cards        *controller.CreditCardController
 	dashboard    *controller.DashboardController
 }
 
@@ -82,20 +85,31 @@ func registerProtectedRoutes(mux *http.ServeMux, c controllers, authenticated mi
 
 	protect("GET /api/transactions", c.transactions.List)
 	protect("POST /api/transactions", c.transactions.Create)
+	protect("PUT /api/transactions/{id}", c.transactions.Update)
 	protect("GET /api/transactions/summary", c.transactions.Summary)
 	protect("DELETE /api/transactions/{id}", c.transactions.Delete)
 
 	protect("GET /api/recurring", c.recurring.List)
 	protect("POST /api/recurring", c.recurring.Create)
+	protect("PUT /api/recurring/{id}", c.recurring.Update)
 	protect("DELETE /api/recurring/{id}", c.recurring.Delete)
 
 	protect("GET /api/categories", c.categories.List)
 	protect("POST /api/categories", c.categories.Create)
+	protect("PUT /api/categories/{id}", c.categories.Update)
 	protect("DELETE /api/categories/{id}", c.categories.Delete)
 
 	protect("GET /api/debts", c.debts.List)
 	protect("POST /api/debts", c.debts.Create)
+	protect("PUT /api/debts/{id}", c.debts.Update)
+	protect("POST /api/debts/{id}/amortize", c.debts.Amortize)
+	protect("POST /api/debts/{id}/settle", c.debts.Settle)
 	protect("DELETE /api/debts/{id}", c.debts.Delete)
+
+	protect("GET /api/cards", c.cards.List)
+	protect("POST /api/cards", c.cards.Create)
+	protect("PUT /api/cards/{id}", c.cards.Update)
+	protect("DELETE /api/cards/{id}", c.cards.Delete)
 
 	protect("GET /api/dashboard", c.dashboard.Overview)
 }

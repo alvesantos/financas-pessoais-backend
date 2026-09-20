@@ -67,12 +67,15 @@ func (s *DashboardService) Overview(
 		period := domain.MonthPeriod(year, m)
 
 		entries := byMonth[m]
+
+		var projected []domain.Transaction
 		for _, entry := range recurringEntries {
-			entries = append(entries, entry.ProjectInto(period)...)
+			projected = append(projected, entry.ProjectInto(period)...)
 		}
 		for _, debt := range debts {
-			entries = append(entries, debt.ProjectInto(period)...)
+			projected = append(projected, debt.ProjectInto(period)...)
 		}
+		entries = append(entries, markPaidByDate(projected, today)...)
 
 		summary := summarize(entries, year, m, today)
 
@@ -144,14 +147,15 @@ func (s *DashboardService) accumulatedBalance(
 	debts []domain.Debt,
 	today time.Time,
 ) (int64, error) {
-	total, err := s.transactions.SumUntil(ctx, userID, today)
+	total, err := s.transactions.SumPaid(ctx, userID)
 	if err != nil {
 		return 0, err
 	}
 
-	// Parcela vencida já saiu do bolso, como qualquer outro lançamento.
+	// Parcela vencida e valor amortizado já saíram do bolso, como qualquer
+	// outro lançamento.
 	for _, debt := range debts {
-		total -= debt.Progress(today).PaidCents
+		total -= debt.OutOfPocketCents(today)
 	}
 
 	for _, entry := range recurringEntries {

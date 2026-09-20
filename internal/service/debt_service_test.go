@@ -10,8 +10,20 @@ import (
 )
 
 func novoServicoDeDividas() (*service.DebtService, *fakeCategoryRepo) {
+	svc, categorias, _, _ := servicoDeDividasCompleto(dia(2026, time.September, 20))
+	return svc, categorias
+}
+
+func servicoDeDividasCompleto(
+	hoje time.Time,
+) (*service.DebtService, *fakeCategoryRepo, *fakeDebtRepo, *fakeTransactionRepo) {
 	categorias := &fakeCategoryRepo{}
-	return service.NewDebtService(&fakeDebtRepo{}, categorias), categorias
+	dividas := &fakeDebtRepo{}
+	transacoes := &fakeTransactionRepo{}
+
+	svc := service.NewDebtService(dividas, categorias, transacoes, relogioFixo{hoje: hoje})
+
+	return svc, categorias, dividas, transacoes
 }
 
 // emprestimoDoEnunciado: 21 parcelas de R$ 877,66 a partir de 7 de outubro.

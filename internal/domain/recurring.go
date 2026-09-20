@@ -33,6 +33,13 @@ type NewRecurringEntry struct {
 	CategoryID  *int64
 }
 
+// UpdateRecurringEntry são os dados para reescrever um fixo.
+type UpdateRecurringEntry struct {
+	ID int64
+	NewRecurringEntry
+	Active bool
+}
+
 // OccurrencesIn devolve, em ordem, as datas em que o fixo cai dentro do
 // período. A regra nunca produz datas antes do início nem depois do fim.
 func (r RecurringEntry) OccurrencesIn(period Period) []time.Time {

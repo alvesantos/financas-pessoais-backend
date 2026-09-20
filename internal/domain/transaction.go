@@ -13,6 +13,16 @@ type Transaction struct {
 	OccurredAt  time.Time
 	CreatedAt   time.Time
 
+	// Paid diz se o dinheiro já saiu ou entrou de fato. É o que decide o
+	// saldo atual: uma conta lançada para o dia 25 e ainda não paga pesa no
+	// previsto, nunca no atual.
+	Paid bool
+
+	// Cartão e fatura, quando o lançamento é de cartão de crédito.
+	CreditCardID   *int64
+	CreditCardName *string
+	InvoiceMonth   *time.Time
+
 	// Categoria, quando houver. Nome e cor vêm junto para a listagem não
 	// precisar de uma consulta por linha.
 	CategoryID    *int64
@@ -42,18 +52,30 @@ func (t Transaction) SignedAmount() int64 {
 
 // NewTransaction são os dados para criar um lançamento.
 type NewTransaction struct {
-	UserID      int64
-	Description string
-	AmountCents int64
-	Kind        Kind
-	OccurredAt  time.Time
-	CategoryID  *int64
+	UserID       int64
+	Description  string
+	AmountCents  int64
+	Kind         Kind
+	OccurredAt   time.Time
+	CategoryID   *int64
+	Paid         bool
+	CreditCardID *int64
+	Invoice      InvoiceChoice
+	// InvoiceMonth é calculado pelo serviço a partir do cartão e da escolha
+	// de fatura, para o repositório não precisar conhecer essa regra.
+	InvoiceMonth *time.Time
+}
+
+// UpdateTransaction são os dados para reescrever um lançamento.
+type UpdateTransaction struct {
+	ID int64
+	NewTransaction
 }
 
 // MonthSummary são os totais de um mês.
 //
-// SaldoAtual conta só o que já aconteceu (até hoje); SaldoPrevisto conta o
-// mês inteiro, incluindo o que ainda vai cair e as projeções dos fixos.
+// SaldoAtual conta só o que foi pago ou recebido; SaldoPrevisto conta o mês
+// inteiro, incluindo o que ainda vai cair e as projeções.
 type MonthSummary struct {
 	Year            int
 	Month           time.Month

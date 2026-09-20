@@ -27,10 +27,28 @@ func (f *fakeTransactionRepo) Create(_ context.Context, input domain.NewTransact
 		Kind:        input.Kind,
 		OccurredAt:  input.OccurredAt,
 		CategoryID:  input.CategoryID,
+		Paid:        input.Paid,
 	}
 	f.items = append(f.items, t)
 
 	return &t, nil
+}
+
+func (f *fakeTransactionRepo) Update(_ context.Context, input domain.UpdateTransaction) (*domain.Transaction, error) {
+	for i := range f.items {
+		if f.items[i].ID == input.ID {
+			f.items[i].Description = input.Description
+			f.items[i].AmountCents = input.AmountCents
+			f.items[i].Kind = input.Kind
+			f.items[i].OccurredAt = input.OccurredAt
+			f.items[i].CategoryID = input.CategoryID
+			f.items[i].Paid = input.Paid
+			f.items[i].CreditCardID = input.CreditCardID
+			f.items[i].InvoiceMonth = input.InvoiceMonth
+			return &f.items[i], nil
+		}
+	}
+	return nil, domain.ErrTransactionNotFound
 }
 
 func (f *fakeTransactionRepo) ListByPeriod(_ context.Context, _ int64, period domain.Period) ([]domain.Transaction, error) {
@@ -43,10 +61,10 @@ func (f *fakeTransactionRepo) ListByPeriod(_ context.Context, _ int64, period do
 	return out, nil
 }
 
-func (f *fakeTransactionRepo) SumUntil(_ context.Context, _ int64, until time.Time) (int64, error) {
+func (f *fakeTransactionRepo) SumPaid(_ context.Context, _ int64) (int64, error) {
 	var total int64
 	for _, item := range f.items {
-		if !item.OccurredAt.After(until) {
+		if item.Paid {
 			total += item.SignedAmount()
 		}
 	}
@@ -83,6 +101,23 @@ func (f *fakeRecurringRepo) Create(_ context.Context, input domain.NewRecurringE
 	f.items = append(f.items, entry)
 
 	return &entry, nil
+}
+
+func (f *fakeRecurringRepo) Update(_ context.Context, input domain.UpdateRecurringEntry) (*domain.RecurringEntry, error) {
+	for i := range f.items {
+		if f.items[i].ID == input.ID {
+			f.items[i].Description = input.Description
+			f.items[i].AmountCents = input.AmountCents
+			f.items[i].Kind = input.Kind
+			f.items[i].Frequency = input.Frequency
+			f.items[i].StartDate = input.StartDate
+			f.items[i].EndDate = input.EndDate
+			f.items[i].CategoryID = input.CategoryID
+			f.items[i].Active = input.Active
+			return &f.items[i], nil
+		}
+	}
+	return nil, domain.ErrRecurringNotFound
 }
 
 func (f *fakeRecurringRepo) List(_ context.Context, _ int64) ([]domain.RecurringEntry, error) {
@@ -134,17 +169,34 @@ func novoServicoComDividas(
 	fixos := &fakeRecurringRepo{}
 	dividas := &fakeDebtRepo{}
 	categorias := &fakeCategoryRepo{}
+	cartoes := &fakeCardRepo{}
 
-	svc := service.NewTransactionService(transacoes, fixos, dividas, categorias, relogioFixo{hoje: hoje})
+	svc := service.NewTransactionService(transacoes, fixos, dividas, categorias, cartoes, relogioFixo{hoje: hoje})
 
 	return svc, transacoes, fixos, dividas
 }
 
+// criar grava um lançamento já pago, que é o caso comum.
 func criar(t *testing.T, svc *service.TransactionService, descricao string, centavos int64, tipo domain.Kind, data time.Time) *domain.Transaction {
+	t.Helper()
+	return criarCom(t, svc, descricao, centavos, tipo, data, true)
+}
+
+// criarCom deixa explícito se o dinheiro já saiu ou entrou.
+func criarCom(
+	t *testing.T,
+	svc *service.TransactionService,
+	descricao string,
+	centavos int64,
+	tipo domain.Kind,
+	data time.Time,
+	pago bool,
+) *domain.Transaction {
 	t.Helper()
 
 	created, err := svc.Create(context.Background(), domain.NewTransaction{
-		UserID: usuario, Description: descricao, AmountCents: centavos, Kind: tipo, OccurredAt: data,
+		UserID: usuario, Description: descricao, AmountCents: centavos,
+		Kind: tipo, OccurredAt: data, Paid: pago,
 	})
 	if err != nil {
 		t.Fatalf("criar lançamento: %v", err)
@@ -240,12 +292,13 @@ func TestSaldoSoSomaComReceita(t *testing.T) {
 	}
 }
 
-func TestSaldoAtualIgnoraOQueAindaNaoAconteceu(t *testing.T) {
+func TestSaldoAtualContaSoOQueFoiPago(t *testing.T) {
 	hoje := dia(2026, time.September, 15)
 	svc, _, _ := novoServico(hoje)
 
 	criar(t, svc, "Salário", 500000, domain.KindReceita, dia(2026, time.September, 5))
-	criar(t, svc, "Aluguel", 200000, domain.KindDespesa, dia(2026, time.September, 25))
+	// Lançado para o dia 25 e ainda não pago.
+	criarCom(t, svc, "Aluguel", 200000, domain.KindDespesa, dia(2026, time.September, 25), false)
 
 	resumo, err := svc.Summary(context.Background(), usuario, 2026, time.September)
 	if err != nil {
@@ -253,14 +306,31 @@ func TestSaldoAtualIgnoraOQueAindaNaoAconteceu(t *testing.T) {
 	}
 
 	if resumo.SaldoAtual != 500000 {
-		t.Errorf("saldo atual = %d, esperava 500000 (o aluguel ainda não caiu)", resumo.SaldoAtual)
+		t.Errorf("saldo atual = %d, esperava 500000 (o aluguel ainda não foi pago)", resumo.SaldoAtual)
 	}
 	if resumo.SaldoPrevisto != 300000 {
 		t.Errorf("saldo previsto = %d, esperava 300000", resumo.SaldoPrevisto)
 	}
 }
 
-func TestLancamentoDeHojeContaNoSaldoAtual(t *testing.T) {
+func TestLancamentoNaoPagoFicaSoNoPrevisto(t *testing.T) {
+	hoje := dia(2026, time.September, 15)
+	svc, _, _ := novoServico(hoje)
+
+	criarCom(t, svc, "Conta de luz", 5000, domain.KindDespesa, dia(2026, time.September, 10), false)
+
+	resumo, _ := svc.Summary(context.Background(), usuario, 2026, time.September)
+
+	// A data já passou, mas o dinheiro não saiu: pesa só no previsto.
+	if resumo.SaldoAtual != 0 {
+		t.Errorf("saldo atual = %d, esperava 0", resumo.SaldoAtual)
+	}
+	if resumo.SaldoPrevisto != -5000 {
+		t.Errorf("saldo previsto = %d, esperava -5000", resumo.SaldoPrevisto)
+	}
+}
+
+func TestLancamentoPagoContaNoSaldoAtual(t *testing.T) {
 	hoje := dia(2026, time.September, 15)
 	svc, _, _ := novoServico(hoje)
 

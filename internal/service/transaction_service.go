@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ type TransactionService struct {
 	recurring    domain.RecurringRepository
 	debts        domain.DebtRepository
 	categories   domain.CategoryRepository
+	cards        domain.CreditCardRepository
 	clock        domain.Clock
 }
 
@@ -26,6 +28,7 @@ func NewTransactionService(
 	recurring domain.RecurringRepository,
 	debts domain.DebtRepository,
 	categories domain.CategoryRepository,
+	cards domain.CreditCardRepository,
 	clock domain.Clock,
 ) *TransactionService {
 	return &TransactionService{
@@ -33,6 +36,7 @@ func NewTransactionService(
 		recurring:    recurring,
 		debts:        debts,
 		categories:   categories,
+		cards:        cards,
 		clock:        clock,
 	}
 }
@@ -44,14 +48,78 @@ func (s *TransactionService) Create(ctx context.Context, input domain.NewTransac
 		return nil, err
 	}
 
-	if err := ensureCategory(ctx, s.categories, input.UserID, input.CategoryID, input.Kind); err != nil {
+	prepared, err := s.prepare(ctx, input)
+	if err != nil {
 		return nil, err
+	}
+
+	return s.transactions.Create(ctx, prepared)
+}
+
+// Update reescreve um lançamento já gravado, com as mesmas regras da criação.
+func (s *TransactionService) Update(
+	ctx context.Context, input domain.UpdateTransaction,
+) (*domain.Transaction, error) {
+	if err := validateAmountAndKind(input.AmountCents, input.Kind); err != nil {
+		return nil, err
+	}
+
+	prepared, err := s.prepare(ctx, input.NewTransaction)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.transactions.Update(ctx, domain.UpdateTransaction{ID: input.ID, NewTransaction: prepared})
+}
+
+// prepare aplica as regras comuns à criação e à edição: categoria válida,
+// descrição padrão e o mês da fatura quando o lançamento é de cartão.
+func (s *TransactionService) prepare(
+	ctx context.Context, input domain.NewTransaction,
+) (domain.NewTransaction, error) {
+	if err := ensureCategory(ctx, s.categories, input.UserID, input.CategoryID, input.Kind); err != nil {
+		return input, err
 	}
 
 	input.Description = defaultDescription(input.Description, input.Kind)
 	input.OccurredAt = domain.Day(input.OccurredAt)
+	input.InvoiceMonth = nil
 
-	return s.transactions.Create(ctx, input)
+	if input.CreditCardID == nil {
+		return input, nil
+	}
+
+	// Cartão só faz sentido em gasto de cartão de crédito.
+	if input.Kind != domain.KindCartaoCredito {
+		return input, domain.ErrValidation.WithFields(map[string]string{
+			"credit_card_id": "o cartão vale só para gasto no cartão de crédito",
+		})
+	}
+
+	card, err := s.cards.FindByID(ctx, input.UserID, *input.CreditCardID)
+	if err != nil {
+		if errors.Is(err, domain.ErrCreditCardNotFound) {
+			return input, domain.ErrValidation.WithFields(map[string]string{
+				"credit_card_id": "cartão não encontrado",
+			})
+		}
+		return input, err
+	}
+
+	choice := input.Invoice
+	if choice == "" {
+		choice = domain.InvoiceCurrent
+	}
+	if !choice.Valid() {
+		return input, domain.ErrValidation.WithFields(map[string]string{
+			"invoice": "escolha a fatura atual ou a próxima",
+		})
+	}
+
+	invoiceMonth := card.InvoiceMonthFor(input.OccurredAt, choice)
+	input.InvoiceMonth = &invoiceMonth
+
+	return input, nil
 }
 
 // ListMonth devolve os lançamentos do mês: os gravados no banco e os
@@ -108,12 +176,27 @@ func (s *TransactionService) projectRecurring(
 		return nil, err
 	}
 
+	return markPaidByDate(projectRecurringEntries(entries, period), s.clock.Today()), nil
+}
+
+// projectRecurringEntries projeta todos os fixos de uma vez.
+func projectRecurringEntries(entries []domain.RecurringEntry, period domain.Period) []domain.Transaction {
 	var projected []domain.Transaction
 	for _, entry := range entries {
 		projected = append(projected, entry.ProjectInto(period)...)
 	}
 
-	return projected, nil
+	return projected
+}
+
+// markPaidByDate vale para as projeções, que não têm marcação própria: o que
+// já venceu é tratado como pago, como o extrato de quem paga em dia.
+func markPaidByDate(entries []domain.Transaction, today time.Time) []domain.Transaction {
+	for i := range entries {
+		entries[i].Paid = !entries[i].OccurredAt.After(today)
+	}
+
+	return entries
 }
 
 // projectDebts transforma as parcelas que vencem no período em lançamentos.
@@ -130,7 +213,7 @@ func (s *TransactionService) projectDebts(
 		projected = append(projected, debt.ProjectInto(period)...)
 	}
 
-	return projected, nil
+	return markPaidByDate(projected, s.clock.Today()), nil
 }
 
 // summarize separa o que já aconteceu do que ainda vai acontecer.
@@ -146,7 +229,7 @@ func summarize(entries []domain.Transaction, year int, month time.Month, today t
 		signed := entry.SignedAmount()
 
 		summary.SaldoPrevisto += signed
-		if !entry.OccurredAt.After(today) {
+		if entry.Paid {
 			summary.SaldoAtual += signed
 		}
 

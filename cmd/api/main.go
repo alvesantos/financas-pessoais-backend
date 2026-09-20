@@ -57,16 +57,18 @@ func run() error {
 	recurringRepository := postgres.NewRecurringRepository(pool)
 	categoryRepository := postgres.NewCategoryRepository(pool)
 	debtRepository := postgres.NewDebtRepository(pool)
+	cardRepository := postgres.NewCreditCardRepository(pool)
 	hasher := auth.NewBcryptHasher(cfg.BcryptCost)
 	tokens := auth.NewJWTIssuer(cfg.JWTSecret, cfg.JWTIssuer, cfg.JWTExpiration)
 
 	// Casos de uso.
 	clock := service.SystemClock{}
 	authService := service.NewAuthService(userRepository, hasher, tokens)
-	transactionService := service.NewTransactionService(transactionRepository, recurringRepository, debtRepository, categoryRepository, clock)
+	transactionService := service.NewTransactionService(transactionRepository, recurringRepository, debtRepository, categoryRepository, cardRepository, clock)
 	recurringService := service.NewRecurringService(recurringRepository, categoryRepository)
 	categoryService := service.NewCategoryService(categoryRepository)
-	debtService := service.NewDebtService(debtRepository, categoryRepository)
+	debtService := service.NewDebtService(debtRepository, categoryRepository, transactionRepository, clock)
+	cardService := service.NewCreditCardService(cardRepository)
 	dashboardService := service.NewDashboardService(transactionRepository, recurringRepository, debtRepository, clock)
 
 	// Adaptador de entrada.
@@ -76,6 +78,7 @@ func run() error {
 		Recurring:      recurringService,
 		Categories:     categoryService,
 		Debts:          debtService,
+		Cards:          cardService,
 		Clock:          clock,
 		Dashboard:      dashboardService,
 		Tokens:         tokens,

@@ -22,6 +22,7 @@ var migrations = []migration{
 	{2, "lancamentos e fixos", schema002},
 	{3, "categorias com os quatro tipos", schema003},
 	{4, "dividas parceladas", schema004},
+	{5, "amortizacao, quitacao e cartoes de credito", schema005},
 }
 
 const schema001 = `
@@ -121,6 +122,40 @@ CREATE TABLE debts (
 );
 
 CREATE INDEX idx_debts_user ON debts(user_id);
+`
+
+// schema005 traz a amortização e a quitação das dívidas, e os cartões de
+// crédito com a fatura de cada lançamento.
+const schema005 = `
+ALTER TABLE debts ADD COLUMN IF NOT EXISTS amortized_cents BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE debts ADD CONSTRAINT debts_amortized_check CHECK (amortized_cents >= 0);
+ALTER TABLE debts ADD COLUMN IF NOT EXISTS settled_at DATE;
+
+CREATE TABLE credit_cards (
+	id                BIGSERIAL PRIMARY KEY,
+	user_id           BIGINT      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	name              TEXT        NOT NULL,
+	limit_cents       BIGINT      NOT NULL CHECK (limit_cents >= 0),
+	-- dia a partir do qual a compra cai na fatura seguinte
+	best_purchase_day INTEGER     NOT NULL CHECK (best_purchase_day BETWEEN 1 AND 31),
+	due_day           INTEGER     NOT NULL CHECK (due_day BETWEEN 1 AND 31),
+	created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+	UNIQUE (user_id, name)
+);
+
+CREATE INDEX idx_credit_cards_user ON credit_cards(user_id);
+
+ALTER TABLE transactions
+	ADD COLUMN IF NOT EXISTS credit_card_id BIGINT REFERENCES credit_cards(id) ON DELETE SET NULL;
+
+-- Primeiro dia do mês da fatura em que a compra entra.
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS invoice_month DATE;
+
+-- Pago ou recebido. Antes disso o saldo atual usava só a data; as linhas
+-- existentes herdam esse critério para o saldo não mudar de valor.
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS paid BOOLEAN NOT NULL DEFAULT false;
+UPDATE transactions SET paid = (occurred_at <= CURRENT_DATE);
+ALTER TABLE transactions ALTER COLUMN paid SET DEFAULT true;
 `
 
 // Migrate aplica, em ordem, as migrações que ainda faltam.

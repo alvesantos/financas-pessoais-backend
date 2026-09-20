@@ -84,6 +84,37 @@ func (c *TransactionController) Create(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusCreated, dto.NewTransactionResponse(*created))
 }
 
+// Update reescreve um lançamento. PUT /api/transactions/{id}
+func (c *TransactionController) Update(w http.ResponseWriter, r *http.Request) {
+	userID, ok := currentUser(w, r)
+	if !ok {
+		return
+	}
+
+	id, err := request.PathID(r, "id")
+	if err != nil {
+		response.Fail(w, r, err)
+		return
+	}
+
+	body, err := request.DecodeJSON[dto.CreateTransactionRequest](r, w)
+	if err != nil {
+		response.Fail(w, r, err)
+		return
+	}
+
+	updated, err := c.transactions.Update(r.Context(), domain.UpdateTransaction{
+		ID:             id,
+		NewTransaction: body.ToDomain(userID),
+	})
+	if err != nil {
+		response.Fail(w, r, err)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, dto.NewTransactionResponse(*updated))
+}
+
 // Delete apaga um lançamento. DELETE /api/transactions/{id}
 func (c *TransactionController) Delete(w http.ResponseWriter, r *http.Request) {
 	userID, ok := currentUser(w, r)

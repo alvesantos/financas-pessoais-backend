@@ -49,6 +49,35 @@ func (r *CategoryRepository) Create(ctx context.Context, input domain.NewCategor
 	return &category, nil
 }
 
+// Update reescreve a categoria. A cláusula com user_id impede editar a de
+// outra pessoa.
+func (r *CategoryRepository) Update(ctx context.Context, category domain.Category) (*domain.Category, error) {
+	const query = `
+		UPDATE categories SET name = $3, kind = $4, color = $5
+		WHERE id = $1 AND user_id = $2
+		RETURNING ` + categoryColumns
+
+	var updated domain.Category
+	err := r.pool.QueryRow(ctx, query,
+		category.ID, category.UserID, strings.TrimSpace(category.Name),
+		string(category.Kind), category.Color,
+	).Scan(&updated.ID, &updated.UserID, &updated.Name, &updated.Kind, &updated.Color, &updated.CreatedAt)
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.ErrCategoryNotFound
+	}
+
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == uniqueViolation {
+		return nil, domain.ErrCategoryTaken.Wrap(err)
+	}
+	if err != nil {
+		return nil, domain.ErrInternal.Wrap(err)
+	}
+
+	return &updated, nil
+}
+
 func (r *CategoryRepository) List(ctx context.Context, userID int64) ([]domain.Category, error) {
 	const query = `SELECT ` + categoryColumns + `
 		FROM categories WHERE user_id = $1 ORDER BY kind, name`

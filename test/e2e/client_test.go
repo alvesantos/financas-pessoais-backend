@@ -106,6 +106,11 @@ func postAuth(t *testing.T, path string, body any, token string) apiResponse {
 	return do(t, http.MethodPost, path, body, token)
 }
 
+func put(t *testing.T, path string, body any, token string) apiResponse {
+	t.Helper()
+	return do(t, http.MethodPut, path, body, token)
+}
+
 func del(t *testing.T, path, token string) apiResponse {
 	t.Helper()
 	return do(t, http.MethodDelete, path, nil, token)

@@ -26,20 +26,45 @@ func NewCategoryService(repository domain.CategoryRepository) *CategoryService {
 }
 
 func (s *CategoryService) Create(ctx context.Context, input domain.NewCategory) (*domain.Category, error) {
+	name, color, err := validateCategory(input.Name, input.Kind, input.Color)
+	if err != nil {
+		return nil, err
+	}
+
+	input.Name = name
+	input.Color = color
+
+	return s.repository.Create(ctx, input)
+}
+
+// Update reescreve a categoria, com as mesmas regras da criação.
+func (s *CategoryService) Update(ctx context.Context, category domain.Category) (*domain.Category, error) {
+	name, color, err := validateCategory(category.Name, category.Kind, category.Color)
+	if err != nil {
+		return nil, err
+	}
+
+	category.Name = name
+	category.Color = color
+
+	return s.repository.Update(ctx, category)
+}
+
+func validateCategory(rawName string, kind domain.Kind, rawColor string) (string, string, error) {
 	fields := map[string]string{}
 
-	name := strings.TrimSpace(input.Name)
+	name := strings.TrimSpace(rawName)
 	if name == "" {
 		fields["name"] = "informe o nome da categoria"
 	}
 	if utf8.RuneCountInString(name) > maxCategoryNameLength {
 		fields["name"] = "o nome passou de 40 caracteres"
 	}
-	if !input.Kind.Valid() {
+	if !kind.Valid() {
 		fields["kind"] = "escolha um tipo de lançamento"
 	}
 
-	color := strings.TrimSpace(input.Color)
+	color := strings.TrimSpace(rawColor)
 	if color == "" {
 		color = domain.DefaultCategoryColor
 	}
@@ -48,13 +73,10 @@ func (s *CategoryService) Create(ctx context.Context, input domain.NewCategory) 
 	}
 
 	if len(fields) > 0 {
-		return nil, domain.ErrValidation.WithFields(fields)
+		return "", "", domain.ErrValidation.WithFields(fields)
 	}
 
-	input.Name = name
-	input.Color = strings.ToLower(color)
-
-	return s.repository.Create(ctx, input)
+	return name, strings.ToLower(color), nil
 }
 
 func (s *CategoryService) List(ctx context.Context, userID int64) ([]domain.Category, error) {

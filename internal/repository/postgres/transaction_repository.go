@@ -25,11 +25,14 @@ func NewTransactionRepository(pool *pgxpool.Pool) *TransactionRepository {
 }
 
 func (r *TransactionRepository) Create(ctx context.Context, input domain.NewTransaction) (*domain.Transaction, error) {
-	// O RETURNING não alcança a categoria, que está em outra tabela: o
-	// INSERT grava o id e o SELECT seguinte traz nome e cor.
+	invoiceMonth := invoiceMonthOf(input)
+
+	// O RETURNING não alcança a categoria nem o cartão, que estão em outras
+	// tabelas: o INSERT grava os ids e o SELECT seguinte traz nome e cor.
 	const query = `
-		INSERT INTO transactions (user_id, description, amount, kind, occurred_at, category_id)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO transactions
+			(user_id, description, amount, kind, occurred_at, category_id, paid, credit_card_id, invoice_month)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id`
 
 	var id int64
@@ -40,6 +43,9 @@ func (r *TransactionRepository) Create(ctx context.Context, input domain.NewTran
 		string(input.Kind),
 		domain.Day(input.OccurredAt),
 		input.CategoryID,
+		input.Paid,
+		input.CreditCardID,
+		invoiceMonth,
 	).Scan(&id)
 	if err != nil {
 		return nil, domain.ErrInternal.Wrap(err)
@@ -52,6 +58,7 @@ func (r *TransactionRepository) Create(ctx context.Context, input domain.NewTran
 // uma consulta por linha.
 const transactionColumns = `
 	t.id, t.user_id, t.description, t.amount, t.kind, t.occurred_at, t.created_at,
+	t.paid, t.credit_card_id, cc.name, t.invoice_month,
 	t.category_id, c.name, c.color`
 
 func (r *TransactionRepository) findByID(ctx context.Context, userID, id int64) (*domain.Transaction, error) {
@@ -59,6 +66,7 @@ func (r *TransactionRepository) findByID(ctx context.Context, userID, id int64) 
 		SELECT ` + transactionColumns + `
 		FROM transactions t
 		LEFT JOIN categories c ON c.id = t.category_id
+		LEFT JOIN credit_cards cc ON cc.id = t.credit_card_id
 		WHERE t.id = $1 AND t.user_id = $2`
 
 	var t domain.Transaction
@@ -81,6 +89,7 @@ func scanTransaction(row rowScanner, t *domain.Transaction) error {
 	return row.Scan(
 		&t.ID, &t.UserID, &t.Description, &t.AmountCents, &t.Kind,
 		&t.OccurredAt, &t.CreatedAt,
+		&t.Paid, &t.CreditCardID, &t.CreditCardName, &t.InvoiceMonth,
 		&t.CategoryID, &t.CategoryName, &t.CategoryColor,
 	)
 }
@@ -90,6 +99,7 @@ func (r *TransactionRepository) ListByPeriod(ctx context.Context, userID int64, 
 		SELECT ` + transactionColumns + `
 		FROM transactions t
 		LEFT JOIN categories c ON c.id = t.category_id
+		LEFT JOIN credit_cards cc ON cc.id = t.credit_card_id
 		WHERE t.user_id = $1 AND t.occurred_at BETWEEN $2 AND $3
 		ORDER BY t.occurred_at, t.id`
 
@@ -115,16 +125,55 @@ func (r *TransactionRepository) ListByPeriod(ctx context.Context, userID int64, 
 	return transactions, nil
 }
 
-// SumUntil deixa a soma no banco: trazer o histórico inteiro para o Go só
+// Update reescreve o lançamento. A cláusula com user_id impede editar o
+// lançamento de outra pessoa.
+func (r *TransactionRepository) Update(ctx context.Context, input domain.UpdateTransaction) (*domain.Transaction, error) {
+	invoiceMonth := invoiceMonthOf(input.NewTransaction)
+
+	const query = `
+		UPDATE transactions SET
+			description = $3, amount = $4, kind = $5, occurred_at = $6,
+			category_id = $7, paid = $8, credit_card_id = $9, invoice_month = $10
+		WHERE id = $1 AND user_id = $2`
+
+	tag, err := r.pool.Exec(ctx, query,
+		input.ID,
+		input.UserID,
+		strings.TrimSpace(input.Description),
+		input.AmountCents,
+		string(input.Kind),
+		domain.Day(input.OccurredAt),
+		input.CategoryID,
+		input.Paid,
+		input.CreditCardID,
+		invoiceMonth,
+	)
+	if err != nil {
+		return nil, domain.ErrInternal.Wrap(err)
+	}
+
+	if tag.RowsAffected() == 0 {
+		return nil, domain.ErrTransactionNotFound
+	}
+
+	return r.findByID(ctx, input.UserID, input.ID)
+}
+
+// invoiceMonthOf só faz sentido quando o lançamento é de cartão.
+func invoiceMonthOf(input domain.NewTransaction) *time.Time {
+	return input.InvoiceMonth
+}
+
+// SumPaid deixa a soma no banco: trazer o histórico inteiro para o Go só
 // para somá-lo cresceria com o tempo de uso.
-func (r *TransactionRepository) SumUntil(ctx context.Context, userID int64, until time.Time) (int64, error) {
+func (r *TransactionRepository) SumPaid(ctx context.Context, userID int64) (int64, error) {
 	const query = `
 		SELECT COALESCE(SUM(CASE WHEN kind = 'receita' THEN amount ELSE -amount END), 0)
 		FROM transactions
-		WHERE user_id = $1 AND occurred_at <= $2`
+		WHERE user_id = $1 AND paid`
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, query, userID, domain.Day(until)).Scan(&total); err != nil {
+	if err := r.pool.QueryRow(ctx, query, userID).Scan(&total); err != nil {
 		return 0, domain.ErrInternal.Wrap(err)
 	}
 

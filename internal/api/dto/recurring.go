@@ -17,6 +17,7 @@ type CreateRecurringRequest struct {
 	StartDate   string  `json:"start_date"`
 	EndDate     *string `json:"end_date"`
 	CategoryID  *int64  `json:"category_id"`
+	Active      *bool   `json:"active"`
 }
 
 func (r CreateRecurringRequest) Validate() error {
@@ -75,6 +76,21 @@ func (r CreateRecurringRequest) ToDomain(userID int64) domain.NewRecurringEntry 
 		StartDate:   startDate,
 		EndDate:     endDate,
 		CategoryID:  r.CategoryID,
+	}
+}
+
+// ToUpdate converte o corpo em uma edição. Sem "active" no corpo, o fixo
+// continua ativo.
+func (r CreateRecurringRequest) ToUpdate(userID, id int64) domain.UpdateRecurringEntry {
+	active := true
+	if r.Active != nil {
+		active = *r.Active
+	}
+
+	return domain.UpdateRecurringEntry{
+		ID:                id,
+		NewRecurringEntry: r.ToDomain(userID),
+		Active:            active,
 	}
 }
 

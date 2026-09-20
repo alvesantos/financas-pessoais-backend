@@ -30,6 +30,25 @@ func (f *fakeDebtRepo) Create(_ context.Context, input domain.NewDebt) (*domain.
 	return &debt, nil
 }
 
+func (f *fakeDebtRepo) Save(_ context.Context, debt domain.Debt) (*domain.Debt, error) {
+	for i := range f.items {
+		if f.items[i].ID == debt.ID {
+			f.items[i] = debt
+			return &f.items[i], nil
+		}
+	}
+	return nil, domain.ErrDebtNotFound
+}
+
+func (f *fakeDebtRepo) FindByID(_ context.Context, _, id int64) (*domain.Debt, error) {
+	for i := range f.items {
+		if f.items[i].ID == id {
+			return &f.items[i], nil
+		}
+	}
+	return nil, domain.ErrDebtNotFound
+}
+
 func (f *fakeDebtRepo) List(_ context.Context, _ int64) ([]domain.Debt, error) {
 	return f.items, nil
 }

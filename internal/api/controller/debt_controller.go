@@ -58,6 +58,90 @@ func (c *DebtController) Create(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusCreated, dto.NewDebtResponse(*created, created.Progress(c.today())))
 }
 
+// Update reescreve uma dívida. PUT /api/debts/{id}
+func (c *DebtController) Update(w http.ResponseWriter, r *http.Request) {
+	userID, ok := currentUser(w, r)
+	if !ok {
+		return
+	}
+
+	id, err := request.PathID(r, "id")
+	if err != nil {
+		response.Fail(w, r, err)
+		return
+	}
+
+	body, err := request.DecodeJSON[dto.CreateDebtRequest](r, w)
+	if err != nil {
+		response.Fail(w, r, err)
+		return
+	}
+
+	updated, err := c.debts.Update(r.Context(), domain.UpdateDebt{ID: id, NewDebt: body.ToDomain(userID)})
+	if err != nil {
+		response.Fail(w, r, err)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, dto.NewDebtResponse(*updated, updated.Progress(c.today())))
+}
+
+// Amortize abate o saldo devedor. POST /api/debts/{id}/amortize
+func (c *DebtController) Amortize(w http.ResponseWriter, r *http.Request) {
+	userID, ok := currentUser(w, r)
+	if !ok {
+		return
+	}
+
+	id, err := request.PathID(r, "id")
+	if err != nil {
+		response.Fail(w, r, err)
+		return
+	}
+
+	body, err := request.DecodeJSON[dto.AmortizeRequest](r, w)
+	if err != nil {
+		response.Fail(w, r, err)
+		return
+	}
+
+	updated, err := c.debts.Amortize(r.Context(), userID, id, body.ToDomain())
+	if err != nil {
+		response.Fail(w, r, err)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, dto.NewDebtResponse(*updated, updated.Progress(c.today())))
+}
+
+// Settle quita a dívida. POST /api/debts/{id}/settle
+func (c *DebtController) Settle(w http.ResponseWriter, r *http.Request) {
+	userID, ok := currentUser(w, r)
+	if !ok {
+		return
+	}
+
+	id, err := request.PathID(r, "id")
+	if err != nil {
+		response.Fail(w, r, err)
+		return
+	}
+
+	body, err := request.DecodeJSON[dto.SettleRequest](r, w)
+	if err != nil {
+		response.Fail(w, r, err)
+		return
+	}
+
+	updated, err := c.debts.Settle(r.Context(), userID, id, body.SubtractFromBalance)
+	if err != nil {
+		response.Fail(w, r, err)
+		return
+	}
+
+	response.JSON(w, http.StatusOK, dto.NewDebtResponse(*updated, updated.Progress(c.today())))
+}
+
 // Delete apaga uma dívida. DELETE /api/debts/{id}
 func (c *DebtController) Delete(w http.ResponseWriter, r *http.Request) {
 	userID, ok := currentUser(w, r)

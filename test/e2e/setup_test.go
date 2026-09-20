@@ -72,6 +72,7 @@ func buildHandler(pool *pgxpool.Pool) http.Handler {
 	recurringRepository := postgres.NewRecurringRepository(pool)
 	categoryRepository := postgres.NewCategoryRepository(pool)
 	debtRepository := postgres.NewDebtRepository(pool)
+	cardRepository := postgres.NewCreditCardRepository(pool)
 
 	// Custo mínimo do bcrypt: a suíte testa o fluxo, não a criptografia.
 	hasher := auth.NewBcryptHasher(4)
@@ -80,10 +81,11 @@ func buildHandler(pool *pgxpool.Pool) http.Handler {
 
 	return router.New(router.Deps{
 		Auth:           service.NewAuthService(userRepository, hasher, tokens),
-		Transactions:   service.NewTransactionService(transactionRepository, recurringRepository, debtRepository, categoryRepository, clock),
+		Transactions:   service.NewTransactionService(transactionRepository, recurringRepository, debtRepository, categoryRepository, cardRepository, clock),
 		Recurring:      service.NewRecurringService(recurringRepository, categoryRepository),
 		Categories:     service.NewCategoryService(categoryRepository),
-		Debts:          service.NewDebtService(debtRepository, categoryRepository),
+		Debts:          service.NewDebtService(debtRepository, categoryRepository, transactionRepository, clock),
+		Cards:          service.NewCreditCardService(cardRepository),
 		Clock:          clock,
 		Dashboard:      service.NewDashboardService(transactionRepository, recurringRepository, debtRepository, clock),
 		Tokens:         tokens,
@@ -141,7 +143,7 @@ func resetDatabase(t *testing.T) {
 	t.Helper()
 
 	_, err := pool.Exec(context.Background(),
-		`TRUNCATE transactions, recurring_entries, debts, categories, users RESTART IDENTITY CASCADE`)
+		`TRUNCATE transactions, recurring_entries, debts, credit_cards, categories, users RESTART IDENTITY CASCADE`)
 	if err != nil {
 		t.Fatalf("limpar banco: %v", err)
 	}
